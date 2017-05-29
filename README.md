@@ -1,3 +1,4 @@
+[![Stories in Ready](https://badge.waffle.io/psk7142/ML_CIFAR-10.png?label=ready&title=Ready)](https://waffle.io/psk7142/ML_CIFAR-10?utm_source=badge)
 # Machine Learning
 
 Using CIFAR-10 datasets
