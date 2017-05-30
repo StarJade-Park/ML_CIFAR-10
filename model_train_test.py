@@ -16,11 +16,11 @@ FLAGS = flags.FLAGS
 
 # TODO add argv for modeling function ex) layer width, layer number
 def model_NN():
-
     # placeholder x, y, y_label
     ph_set = nn.placeholders_init()
 
     # NN layer
+
     layer1 = nn.layer_perceptron(ph_set["X"], [FLAGS.image_size],
                                  [FLAGS.perceptron_input_shape_size], "layer_1")
     layer2 = nn.layer_perceptron(layer1, [FLAGS.perceptron_input_shape_size],
@@ -81,7 +81,6 @@ def model_NN():
 
 # TODO add argv for modeling function ex) layer width, layer number
 def model_NN_softmax():
-
     # placeHolder
     ph_set = nn.placeholders_init()
 
@@ -160,7 +159,7 @@ def train_and_model(model):
 
         # train step
         print("Train Start...")
-        train_batch_config = Batch.Config()
+        train_batch_config = Batch.Config(Batch.Config.OPTION_TRAIN_SET)
         train_batch = Batch.Batch(train_batch_config)
         sess.run(model["init_op"])
 
@@ -168,16 +167,10 @@ def train_and_model(model):
             key_list = [Batch.INPUT_DATA, Batch.OUTPUT_LABEL, Batch.OUTPUT_DATA]
 
             data = train_batch.next_batch(FLAGS.batch_size, key_list)
-            print("*********************")
-            print(data)
-            print("*********************")
 
             feed_dict = {model["X"]: data[Batch.INPUT_DATA],
                          model["Y"]: data[Batch.OUTPUT_DATA],
                          model["Y_label"]: data[Batch.OUTPUT_LABEL]}
-            print(model["X"])
-            print(feed_dict[model["X"]])
-            print(feed_dict)
 
             sess.run(model["train_op"], feed_dict)
             # print log
@@ -197,7 +190,7 @@ def train_and_model(model):
 
         # test step
         print("Test Start...")
-        test_batch_config = Batch.Config()
+        test_batch_config = Batch.Config(Batch.Config.OPTION_TEST_SET)
         test_batch = Batch.Batch(test_batch_config)
 
         total_acc = 0.
@@ -205,19 +198,9 @@ def train_and_model(model):
             key_list = [Batch.INPUT_DATA, Batch.OUTPUT_LABEL, Batch.OUTPUT_DATA]
 
             data = test_batch.next_batch(FLAGS.batch_size, key_list)
-            print("*********************")
-            print(data)
-            print("*********************")
             feed_dict = {model["X"]: data[Batch.INPUT_DATA],
                          model["Y"]: data[Batch.OUTPUT_DATA],
                          model["Y_label"]: data[Batch.OUTPUT_LABEL]}
-            print(model["X"])
-            print(feed_dict[model["X"]])
-            print(feed_dict)
-
-            # print("input:", data[Batch.INPUT_DATA])
-            # print("output:", data[Batch.OUTPUT_DATA])
-            # print("label:", data[Batch.OUTPUT_LABEL])
 
             summary_test, _acc = sess.run([model["summary"], model["batch_acc"]], feed_dict=feed_dict)
             print(datetime.datetime.utcnow(), "test step: %d" % step
@@ -231,7 +214,11 @@ def train_and_model(model):
 
             test_writer.add_summary(summary=summary_test, global_step=step)
 
-        print("test complete: total acc =", total_acc / (FLAGS.max_test_step+ 1))
+        print("test complete: total acc =", total_acc / (FLAGS.max_test_step + 1))
+
+    # this make clear all graphs
+    tf.reset_default_graph()
+
     return
 
 
@@ -252,6 +239,7 @@ if __name__ == '__main__':
 
     print("Neural Networks")
     train_and_model(model_NN())
+
     print("NN softmax")
     train_and_model(model_NN_softmax())
     pass

@@ -1,17 +1,24 @@
 import pickle
 import numpy as np
 import os
+import sys
+
+BATCH_INIT_ERROR_MSG = "Config init error : option is None," \
+                       " option must Config.OPOPTION_TRAIN_SET " \
+                       "or Config.OPTION_TEST_SET"
 
 DEFAULT_DIR_LIST = "dir_list"
 DEFAULT_NAME_KEY_LIST = "key_list"
-DEFAULT_BATCH_FILE_NUMBER = 5
-DEFAULT_DATA_BATCH_FILE_FORMAT = "data_batch_%d"
+DEFAULT_TRAIN_DATA_BATCH_FILE_FORMAT = "data_batch_%d"
+DEFAULT_TRAIN_BATCH_FILE_NUMBER = 5
+DEFAULT_TEST_DATA_BATCH_FILE_FORMAT = "test_batch"
 # DEFAULT_BATCH_FOLDER = ".\\cifar-10-batches-py" # windows
 # DEFAULT_BATCH_FOLDER = "./cifar-10-batches-py" # ubuntu
 
 # TODO LOOK at me this way is better
-DEFAULT_BATCH_FOLDER = os.path.join(".", "cifar-10-batches-py")
+DEFAULT_BATCH_FOLDER_DIR = os.path.join(".", "cifar-10-batches-py")
 
+# key string of batch data dict
 BATCH_FILE_LABEL = b'batch_label'
 INPUT_DATA = b'data'
 INPUT_FILE_NAME = b'filenames'
@@ -23,20 +30,34 @@ OUTPUT_DATA = "output_list"
 class Config:
     KEY_LIST = DEFAULT_NAME_KEY_LIST
     DIR_LIST = DEFAULT_DIR_LIST
-    FOLDER_NAME = DEFAULT_BATCH_FOLDER
-    BATCH_FILE_NAME_FORMAT = DEFAULT_DATA_BATCH_FILE_FORMAT
-    BATCH_FILE_NUMBER = DEFAULT_BATCH_FILE_NUMBER
+    FOLDER_NAME = DEFAULT_BATCH_FOLDER_DIR
+    TRAIN_BATCH_FILE_NAME_FORMAT = DEFAULT_TRAIN_DATA_BATCH_FILE_FORMAT
+    TRAIN_BATCH_FILE_NUMBER = DEFAULT_TRAIN_BATCH_FILE_NUMBER
+    TEST_BATCH_FILE_NAME_FORMAT = DEFAULT_TEST_DATA_BATCH_FILE_FORMAT
 
-    def __init__(self):
+    OPTION_TRAIN_SET = "train_set"
+    OPTION_TEST_SET = "test_set"
+
+    def __init__(self, option=None):
         # init config
         self.config = dict()
 
-        # init dir_list
-        self.config[DEFAULT_DIR_LIST] = []
-        for i in range(1, self.BATCH_FILE_NUMBER + 1):
-            self.config[DEFAULT_DIR_LIST] \
-                += [os.path.join(self.FOLDER_NAME, self.BATCH_FILE_NAME_FORMAT % i)]
+        # set self.config[DEFAULT_DIR_LIST]
+        if option == self.OPTION_TRAIN_SET:
+            # init dir_list
+            self.config[DEFAULT_DIR_LIST] = []
+            for i in range(1, self.TRAIN_BATCH_FILE_NUMBER + 1):
+                self.config[DEFAULT_DIR_LIST] \
+                    += [os.path.join(self.FOLDER_NAME, self.TRAIN_BATCH_FILE_NAME_FORMAT % i)]
 
+        elif option == self.OPTION_TEST_SET:
+            self.config[DEFAULT_DIR_LIST] \
+                = [os.path.join(self.FOLDER_NAME, self.TEST_BATCH_FILE_NAME_FORMAT)]
+        else:
+            print(BATCH_INIT_ERROR_MSG)
+            raise RuntimeError
+
+        # set self.config[KEY_LIST]
         self.config[self.KEY_LIST] = [
             BATCH_FILE_LABEL,
             INPUT_DATA,
@@ -56,6 +77,7 @@ class Batch:
         self.__generate_y_data()
         pass
 
+    # read file using pickle
     @staticmethod
     def unpickle(file):
         import pickle
@@ -63,10 +85,9 @@ class Batch:
             unpickled = pickle.load(fo, encoding='bytes')
         return unpickled
 
-    # TODO need refactoring
     def __append(self, a, b, key):
         if key == BATCH_FILE_LABEL:
-            return a + [b]
+            return a + self.__assign(b, key)
         elif key == INPUT_DATA:
             return np.concatenate((a, b))
         elif key == INPUT_FILE_NAME:
@@ -74,7 +95,8 @@ class Batch:
         elif key == OUTPUT_LABEL:
             return a + b
 
-    def __assign(self, a, key):
+    @staticmethod
+    def __assign(a, key):
         if key == BATCH_FILE_LABEL:
             return [a]
         elif key == INPUT_DATA:
@@ -84,8 +106,10 @@ class Batch:
         elif key == OUTPUT_LABEL:
             return a
 
+    # load_batch(self)
+    # load batch file every file_dir in self.config["dir_list"]
     def load_batch(self):
-        for dir_ in self.config["dir_list"]:
+        for dir_ in self.config[DEFAULT_DIR_LIST]:
             data = self.unpickle(dir_)
             for key in data:
                 if key in self.batch:
@@ -94,6 +118,13 @@ class Batch:
                     self.batch[key] = self.__assign(data[key], key)
         pass
 
+    # next_batch(self, size, key_list=None)
+    # iter next batch dict from self.batch_index to self.batch_index + size
+    # size : size of result iterated batch
+    # key_list : select key of batch list
+    # default is
+    # ex) key_list = ["X", "Y"] result is
+    # {"X" = [...], "Y" = [...]}
     def next_batch(self, size, key_list=None):
         if key_list is None:
             key_list = self.config[Config.KEY_LIST]
@@ -108,6 +139,10 @@ class Batch:
         self.batch_index = (self.batch_index + size) % self.batch_size
         return batch
 
+    # __generate_y_data(self)
+    # generate y_label from y_data
+    # ex) y_label = 3, result
+    # y_data = [0,0,0,1,0,0,0,0,0,0]
     def __generate_y_data(self):
         self.batch[OUTPUT_DATA] = []
         for idx in self.batch[OUTPUT_LABEL]:
@@ -116,12 +151,18 @@ class Batch:
             self.batch[OUTPUT_DATA] += [temp]
         pass
 
+    # reset_batch_index(self)
+    # reset batch index
+    # same as self.batch_index = 0
     def reset_batch_index(self):
         self.batch_index = 0
 
 
-def test_train_Batch():
-    batch_config = Config()
+# TODO add decorator
+def ex_batch_train_set():
+    print("ex_batch_train_set ")
+    print("*****************************************")
+    batch_config = Config(option=Config.OPTION_TRAIN_SET)
     # print(batch_config.config["dir_list"])
 
     b = Batch(batch_config)
@@ -135,15 +176,34 @@ def test_train_Batch():
             for i in batch[key]:
                 print(i)
                 print()
+
+    print("*****************************************")
     return
 
 
-# TODO implement test_batch
-# TODO test test_batch
-def test_test_Batch():
+# TODO add decorator
+def ex_batch_test_set():
+    print()
+    print("*****************************************")
+    batch_config = Config(option=Config.OPTION_TEST_SET)
+    # print(batch_config.config["dir_list"])
+
+    b = Batch(batch_config)
+
+    size = 3
+    for _ in range(1):
+        key_list = [b'data', b'labels', "output_list"]
+        batch = b.next_batch(size, key_list)
+        for key in batch:
+            print(key)
+            for i in batch[key]:
+                print(i)
+                print()
+    print("*****************************************")
     return
 
 
 if __name__ == '__main__':
-    test_train_Batch()
+    ex_batch_train_set()
+    ex_batch_test_set()
     pass
