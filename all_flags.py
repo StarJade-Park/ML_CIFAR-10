@@ -12,7 +12,7 @@ flags.DEFINE_integer("label_number", 10, "label number of batch files")
 flags.DEFINE_integer("batch_size", 1000, "size of batch files")
 
 # log flags
-flags.DEFINE_integer("print_log_step_size", 100, "print log step size")
+flags.DEFINE_integer("print_log_step_size", 1000, "print log step size")
 flags.DEFINE_integer("summary_step_size", 10000, "summary step size")
 flags.DEFINE_integer("checkpoint_step_size", 1000, "checkpoint step size")
 
@@ -22,8 +22,8 @@ flags.DEFINE_integer("perceptron_output_shape_size", 1000, "perceptron output sh
 
 # train & test flags
 flags.DEFINE_float("learning_rate", 0.01, "learning rate")
-flags.DEFINE_integer("max_train_step", 10, "max train step")
-flags.DEFINE_integer("max_test_step", 10, "max test step")
+flags.DEFINE_integer("max_train_step", 1, "max train step")
+flags.DEFINE_integer("max_test_step", 1, "max test step")
 
 # dir constant values
 TEST = "test"
