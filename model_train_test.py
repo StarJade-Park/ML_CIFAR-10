@@ -154,113 +154,161 @@ def model_CNN_NN_softmax():
 
     x_ = tf.reshape(ph_set["X"], [-1, 32, 32, 3])
 
-    dropout_rate = tf.placeholder(tf.float32, name="drop_out_rate")
+    global_step = tf.Variable(initial_value=0,
+                              name='global_step', trainable=False)
+
+    conv_dropout_rate = tf.placeholder(tf.float32, name="conv_dropout_rate")
+    fc_dropout_rate = tf.placeholder(tf.float32, name="fc_dropout_rate")
 
     # conv layer 1,2,3
-    xavier_init = tf.contrib.layers.xavier_initializer
-    w1 = nn.init_weights([3, 3, 3, 32], xavier_init, "conv_w1")  # 3x3x3 conv, 32 outputs
-    b1 = nn.init_bias([32])
-    conv_layer1 = nn.conv2d_layer(x_, w1, b1, keep_prob=dropout_rate, name="conv_layer1")
-    print(conv_layer1)
 
-    w2 = nn.init_weights([3, 3, 32, 64], xavier_init, "conv_w2")  # 3x3x32 conv, 64 outputs
-    b2 = nn.init_bias([64])
-    conv_layer2 = nn.conv2d_layer(conv_layer1, w2, b2, keep_prob=dropout_rate, name="conv_layer2")
-    print(conv_layer2)
+    shape = [5, 5, 3, 64]
+    conv1 = nn.conv2d_layer(x_,
+                            shape,
+                            keep_prob=conv_dropout_rate,
+                            name="conv1")
+    print(conv1)
 
-    w3 = nn.init_weights([3, 3, 64, 128], xavier_init, "conv_w3")  # 3x3x64 conv, 128 outputs
-    b3 = nn.init_bias([128])
-    conv_layer3 = nn.conv2d_layer(conv_layer2, w3, b3, keep_prob=dropout_rate, name="conv_layer3")
-    print(conv_layer3)
+    shape = [5, 5, 64, 64]
+    conv2 = nn.conv2d_layer(conv1,
+                            shape,
+                            keep_prob=conv_dropout_rate,
+                            name="conv2")
+    print(conv2)
 
-    w4 = nn.init_weights([3, 3, 128, 256], xavier_init, "conv_w4")  # 3x3x128 conv, 256 outputs
-    b4 = nn.init_bias([256])
-    conv_layer4 = nn.conv2d_layer(conv_layer3, w4, b4, keep_prob=dropout_rate, name="conv_layer4")
-    print(conv_layer4)
+    pooling1 = nn.pooling2d_layer(conv2,
+                                  keep_prob=conv_dropout_rate,
+                                  name="pooling1")
+    print(pooling1)
 
-    w5 = nn.init_weights([3, 3, 256, 512], xavier_init, "conv_w5")  # 3x3x256 conv, 512 outputs
-    b5 = nn.init_bias([512])
-    conv_layer5 = nn.conv2d_layer(conv_layer4, w5, b5, keep_prob=dropout_rate, name="conv_layer5")
-    print(conv_layer5)
+    shape = [5, 5, 64, 128]
+    conv3 = nn.conv2d_layer(pooling1,
+                            shape,
+                            keep_prob=conv_dropout_rate,
+                            name="conv3")
+    print(conv3)
 
-    # CNN_NN_softmax
-    # 1 Tensor("dropout/mul:0", shape=(?, 16, 16, 32), dtype = float32)
-    # 2 Tensor("dropout_1/mul:0", shape=(?, 8, 8, 64), dtype = float32)
-    # 3 Tensor("dropout_2/mul:0", shape=(?, 4, 4, 128), dtype = float32)
-    # 4 Tensor("dropout_3/mul:0", shape=(?, 2, 2, 256), dtype = float32)
-    # 5 Tensor("dropout_4/mul:0", shape=(?, 1, 1, 512), dtype = float32)
+    shape = [5, 5, 128, 128]
+    conv4 = nn.conv2d_layer(conv3,
+                            shape,
+                            keep_prob=conv_dropout_rate,
+                            name="conv4")
+    print(conv4)
+
+    pooling2 = nn.pooling2d_layer(conv4,
+                                  keep_prob=conv_dropout_rate,
+                                  name="pooling2")
+    print(pooling2)
+
+    shape = [3, 3, 128, 256]
+    conv5 = nn.conv2d_layer(pooling2,
+                            shape,
+                            keep_prob=conv_dropout_rate,
+                            name="conv5")
+    print(conv5)
+
+    shape = [3, 3, 256, 256]
+    conv6 = nn.conv2d_layer(conv5,
+                            shape,
+                            keep_prob=conv_dropout_rate,
+                            name="conv6")
+    print(conv6)
+
+    pooling3 = nn.pooling2d_layer(conv6,
+                                  keep_prob=conv_dropout_rate,
+                                  name="pooling3")
+    print(pooling3)
     # full connect layer
 
-    fc_input_size = 8 * 8 * 64
-    conv_out_reshape = tf.reshape(conv_layer2, [-1, fc_input_size])
+    fc_input_size = 4 * 4 * 256
+    conv_out_reshape = tf.reshape(pooling3, [-1, fc_input_size])
+
+    layer_width = 4096
     print(conv_out_reshape)
     activate_function = tf.nn.relu
-    fc_layer1 = nn.layer_perceptron(conv_out_reshape,
-                                    [fc_input_size],
-                                    [512],
-                                    "fc_layer1",
-                                    drop_prob=dropout_rate,
-                                    activate_function=activate_function)
-    print(fc_layer1)
-    fc_layer2 = nn.layer_perceptron(fc_layer1,
-                                    [512],
-                                    [512],
-                                    "fc_layer2",
-                                    drop_prob=dropout_rate,
-                                    activate_function=activate_function)
+    with tf.name_scope("fc_layer"):
+        fc_layer1 = nn.layer_perceptron(conv_out_reshape,
+                                        [fc_input_size],
+                                        [layer_width],
+                                        "fc_layer1",
+                                        drop_prob=fc_dropout_rate,
+                                        activate_function=activate_function)
 
-    fc_layer3 = nn.layer_perceptron(fc_layer2,
-                                    [512],
-                                    [512],
-                                    "fc_layer3",
-                                    drop_prob=dropout_rate,
-                                    activate_function=activate_function)
+        fc_layer2 = nn.layer_perceptron(fc_layer1,
+                                        [layer_width],
+                                        [layer_width],
+                                        "fc_layer2",
+                                        drop_prob=fc_dropout_rate,
+                                        activate_function=activate_function)
 
-    fc_layer4 = nn.layer_perceptron(fc_layer3,
-                                    [512],
-                                    [512],
-                                    "fc_layer4",
-                                    drop_prob=dropout_rate,
-                                    activate_function=activate_function)
+        fc_layer3 = nn.layer_perceptron(fc_layer2,
+                                        [layer_width],
+                                        [layer_width],
+                                        "fc_layer3",
+                                        drop_prob=fc_dropout_rate,
+                                        activate_function=activate_function)
 
-    fc_layer5 = nn.layer_perceptron(fc_layer4,
-                                    [512],
-                                    [512],
-                                    "fc_layer5",
-                                    drop_prob=dropout_rate,
-                                    activate_function=activate_function)
+        fc_layer4 = nn.layer_perceptron(fc_layer3,
+                                        [layer_width],
+                                        [layer_width],
+                                        "fc_layer4",
+                                        drop_prob=fc_dropout_rate,
+                                        activate_function=activate_function)
 
-    fc_layer6 = nn.layer_perceptron(fc_layer5,
-                                    [512],
-                                    [512],
-                                    "fc_layer6",
-                                    activate_function=activate_function)
+        fc_layer5 = nn.layer_perceptron(fc_layer4,
+                                        [layer_width],
+                                        [layer_width],
+                                        "fc_layer5",
+                                        drop_prob=fc_dropout_rate,
+                                        activate_function=activate_function)
 
-    fc_layer7 = nn.layer_perceptron(fc_layer6,
-                                    [512],
-                                    [512],
-                                    "fc_layer7",
-                                    activate_function=activate_function)
+        fc_layer6 = nn.layer_perceptron(fc_layer5,
+                                        [layer_width],
+                                        [layer_width],
+                                        "fc_layer6",
+                                        drop_prob=fc_dropout_rate,
+                                        activate_function=activate_function)
 
-    dummy = nn.dummy_activation_function
-    fc_layer8 = nn.layer_perceptron(fc_layer7,
-                                    [512],
-                                    [512],
-                                    "fc_layer8",
-                                    activate_function=dummy)
-    print(fc_layer8)
+        fc_layer7 = nn.layer_perceptron(fc_layer6,
+                                        [layer_width],
+                                        [layer_width],
+                                        "fc_layer7",
+                                        drop_prob=fc_dropout_rate,
+                                        activate_function=activate_function)
+
+        fc_layer8 = nn.layer_perceptron(fc_layer7,
+                                        [layer_width],
+                                        [layer_width],
+                                        "fc_layer8",
+                                        drop_prob=fc_dropout_rate,
+                                        activate_function=activate_function)
+
+        fc_layer9 = nn.layer_perceptron(fc_layer8,
+                                        [layer_width],
+                                        [layer_width],
+                                        "fc_layer9",
+                                        drop_prob=fc_dropout_rate,
+                                        activate_function=activate_function)
+
+        fc_layer10 = nn.layer_perceptron(fc_layer9,
+                                         [layer_width],
+                                         [layer_width],
+                                         "fc_layer10",
+                                         activate_function=activate_function)
+
+
     # softmax
-    W_softmax = nn.init_weights([512, 10])
-    h = tf.nn.softmax(tf.matmul(fc_layer8, W_softmax))
+    W_softmax = nn.init_weights([layer_width, 10])
+    h = tf.nn.softmax(tf.matmul(fc_layer2, W_softmax))
 
     print(h)
     # cross entropy
     # cost = tf.reduce_mean(-tf.reduce_sum(ph_set["Y"] * tf.log(h), reduction_indices=1))
-    cost = -tf.reduce_sum(ph_set["Y"] * tf.log(h))
+    cost = -tf.reduce_sum(ph_set["Y"] * tf.log(h + 1e-10))
 
     # train_op
-    learning_rate = 1e-5
-    train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost)
+    learning_rate = 1e-4
+    train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost, global_step=global_step)
     # train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
     # train_op = tf.train.AdadeltaOptimizer(learning_rate).minimize(cost)
     # train_op = tf.train.AdagradOptimizer(learning_rate).minimize(cost)
@@ -288,7 +336,8 @@ def model_CNN_NN_softmax():
                   # "batch_hit_count ": batch_hit_count,
                   "init_op": init_op,
                   "summary": summary,
-                  "dropout_rate": dropout_rate,
+                  "fc_dropout_rate": fc_dropout_rate,
+                  "conv_dropout_rate": conv_dropout_rate,
                   }
     return tensor_set
 
@@ -319,10 +368,23 @@ def train_and_model(model):
 
         sess.run(model["init_op"])
 
+        train_acc = 1
+        test_acc = 2
         for epoch in range(1000):
-            mini_batch_size = 500
+            mini_batch_size = 100
             step_size = int(50000 / mini_batch_size)
-            dropout_rate = 0.7
+
+            conv_dropout_rate = .7
+            fc_dropout_rate = .5
+
+            # # conv_dropout_rate = max(1 - epoch * 0.001, 0.7)
+            # print(test_acc + 0.01, train_acc)
+            # print(test_acc + 0.01 < train_acc)
+            # if test_acc + 1.0 < train_acc:
+            #     fc_dropout_rate = 0.7
+            # else:
+            #     fc_dropout_rate = 1
+            # print("fc_dropout_rate :", fc_dropout_rate)
 
             train_acc = 0.
             train_cost_mean = 0.0
@@ -331,23 +393,24 @@ def train_and_model(model):
                 feed_dict = {model["X"]: data[Batch.INPUT_DATA],
                              model["Y"]: data[Batch.OUTPUT_DATA],
                              model["Y_label"]: data[Batch.OUTPUT_LABEL],
-                             model["dropout_rate"]: dropout_rate}
+                             model["conv_dropout_rate"]: conv_dropout_rate,
+                             model["fc_dropout_rate"]: fc_dropout_rate}
 
                 sess.run(model["train_op"], feed_dict)
                 # print log
                 _acc, _cost = sess.run([model["batch_acc"], model["cost"]],
                                        feed_dict=feed_dict)
-                train_acc += _acc
-                train_cost_mean += _cost
+                train_acc += _acc / step_size
+                train_cost_mean += _cost / step_size
                 # print(step)
 
             print(datetime.datetime.utcnow(),
                   "epoch: %d" % epoch,
-                  "train_acc: %f" % (train_acc / step_size),
-                  "cost: %f" % (train_cost_mean / step_size))
+                  "train_acc: %f" % train_acc,
+                  "cost: %f" % train_cost_mean)
 
             # test step
-            mini_batch_size = 50
+            mini_batch_size = 1000
             step_size = int(10000 / mini_batch_size)
 
             test_acc = 0.
@@ -356,14 +419,15 @@ def train_and_model(model):
                 feed_dict = {model["X"]: data[Batch.INPUT_DATA],
                              model["Y"]: data[Batch.OUTPUT_DATA],
                              model["Y_label"]: data[Batch.OUTPUT_LABEL],
-                             model["dropout_rate"]: 1}
+                             model["conv_dropout_rate"]: 1,
+                             model["fc_dropout_rate"]: 1}
 
                 _acc = sess.run(model["batch_acc"], feed_dict=feed_dict)
-                test_acc += _acc
+                test_acc += _acc / step_size
 
             print(datetime.datetime.utcnow(),
                   "epoch: %d" % epoch,
-                  "test acc = %f" % (test_acc / step_size))
+                  "test acc = %f" % test_acc)
 
     # this make clear all graphs
     tf.reset_default_graph()
