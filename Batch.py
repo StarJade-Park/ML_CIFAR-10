@@ -2,6 +2,8 @@ import pickle
 import numpy as np
 import os
 import sys
+import random
+import util
 
 BATCH_INIT_ERROR_MSG = "Config init error : option is None," \
                        " option must Config.OPOPTION_TRAIN_SET " \
@@ -77,13 +79,6 @@ class Batch:
         self.__generate_y_data()
         pass
 
-    # read file using pickle
-    @staticmethod
-    def unpickle(file):
-        import pickle
-        with open(file, 'rb') as fo:
-            unpickled = pickle.load(fo, encoding='bytes')
-        return unpickled
 
     def __append(self, a, b, key):
         if key == BATCH_FILE_LABEL:
@@ -110,7 +105,7 @@ class Batch:
     # load batch file every file_dir in self.config["dir_list"]
     def load_batch(self):
         for dir_ in self.config[DEFAULT_DIR_LIST]:
-            data = self.unpickle(dir_)
+            data = util.unpickle(dir_,encoding='bytes')
             for key in data:
                 if key in self.batch:
                     self.batch[key] = self.__append(self.batch[key], data[key], key)
@@ -125,7 +120,10 @@ class Batch:
     # default is
     # ex) key_list = ["X", "Y"] result is
     # {"X" = [...], "Y" = [...]}
-    def next_batch(self, size, key_list=None):
+    def next_batch(self, size, key_list=None, shuffle=False):
+        if shuffle:
+            self.batch_index = random.randint(0, self.batch_size-1)
+
         if key_list is None:
             key_list = self.config[Config.KEY_LIST]
 
