@@ -10,6 +10,7 @@ import random
 import model
 import util
 
+
 # TODO file must split
 # TODO write more comment please
 
@@ -127,23 +128,11 @@ def train_and_test(model, param, saver_path, is_restored=False):
     return global_epoch, zip(train_acc_list, test_acc_list, train_cost_list, test_cost_list)
 
 
-if __name__ == '__main__':
-    util.pre_load()
-
-    # dirs exist check & make dirs
-    # if not os.path.exists(FLAGS.dir_train_checkpoint):
-    #     os.makedirs(FLAGS.dir_train_checkpoint)
-    #
-    # if not os.path.exists(FLAGS.dir_test_checkpoint):
-    #     os.makedirs(FLAGS.dir_test_checkpoint)
-    #
-    # if not os.path.exists(FLAGS.dir_train_tensorboard):
-    #     os.makedirs(FLAGS.dir_train_tensorboard)
-    #
-    # if not os.path.exists(FLAGS.dir_test_tensorboard):
-    #     os.makedirs(FLAGS.dir_test_tensorboard)
-
+def gen_tuning_model():
     print("CNN_NN_softmax")
+    print("get tunning model")
+
+    import model
 
     cnn = model.Model_cnn_nn_softmax()
 
@@ -173,6 +162,86 @@ if __name__ == '__main__':
         path = os.path.join(folder_path, "~epoch_" + str(epoch).zfill(6))
         util.pickle(out, path)
         print("save out")
+
+
+def get_last_global_epoch(folder_path):
+    from os.path import join
+    param_path = join(folder_path, "param")
+    saver_file_name = "check_point"
+    saver_path = join(folder_path, saver_file_name)
+    cnn = model.Model_cnn_nn_softmax()
+
+    param = util.unpickle(param_path)
+
+    cnn_model = cnn.build_model(param)
+
+    with tf.Session() as sess:
+        saver = tf.train.Saver()
+        saver.restore(sess, saver_path)
+        print("restored")
+        global_epoch = sess.run(cnn_model["global_epoch"])
+
+    tf.reset_default_graph()
+
+    return global_epoch
+
+
+def restore_tuning_model():
+    from os.path import join
+    saver_file_name = "check_point"
+
+    cnn = model.Model_cnn_nn_softmax()
+
+    tuning_folder_dir = join(".", "save", "tuning")
+    for folder_name in os.listdir(tuning_folder_dir):
+        folder_path = join(tuning_folder_dir, folder_name)
+
+        last_epoch = get_last_global_epoch(folder_path) - 1
+        print("last global epoch :", last_epoch)
+
+        last_output_path = join(folder_path, "~epoch_" + str(last_epoch).zfill(6))
+        last_output = util.unpickle(last_output_path)
+        train_acc, test_acc, train_cost, test_cost = list(last_output)[-1]
+
+        if train_acc < .45 or train_cost < 0.3:
+            continue
+
+        print(folder_path)
+        print(train_acc, test_acc, train_cost, test_cost)
+
+        param = util.unpickle(join(folder_path, "param"))
+        print("load param")
+        util.print_param(param)
+
+        cnn_model = cnn.build_model(param)
+        print("build model")
+
+        saver_path = join(folder_path, saver_file_name)
+        epoch, output = train_and_test(cnn_model, param, saver_path, is_restored=True)
+
+        output_path = join(folder_path, "~epoch_" + str(epoch).zfill(6))
+        util.pickle(output, output_path)
+        print("save out")
+
+
+if __name__ == '__main__':
+    util.pre_load()
+
+    restore_tuning_model()
+
+    # dirs exist check & make dirs
+    # if not os.path.exists(FLAGS.dir_train_checkpoint):
+    #     os.makedirs(FLAGS.dir_train_checkpoint)
+    #
+    # if not os.path.exists(FLAGS.dir_test_checkpoint):
+    #     os.makedirs(FLAGS.dir_test_checkpoint)
+    #
+    # if not os.path.exists(FLAGS.dir_train_tensorboard):
+    #     os.makedirs(FLAGS.dir_train_tensorboard)
+    #
+    # if not os.path.exists(FLAGS.dir_test_tensorboard):
+    #     os.makedirs(FLAGS.dir_test_tensorboard)
+
 
 
 

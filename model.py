@@ -548,8 +548,8 @@ class Model_cnn_nn_softmax:
         param["fc_layer2_w_shape"] = [param["fc_layer_width"], param["fc_layer_width"]]
         param["fc_layer2_bias_shape"] = [param["fc_layer_width"]]
         param["softmax_w_shape"] = [param["fc_layer_width"], 10]
-        param["l2_regularizer_beta"] = random.uniform(0, 1)
-        param["learning_rate"] = 10 ** (random.randint(-5, -4))
+        param["l2_regularizer_beta"] = random.uniform(0, 5)
+        param["learning_rate"] = 10 ** (random.randint(-4, -4))
 
         param["param_list"] = self.PARAM_LIST
         return param

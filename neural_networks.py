@@ -1,7 +1,6 @@
 import tensorflow as tf
 import tensor_summary as ts
 
-
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
@@ -21,6 +20,7 @@ def init_bias(shape, name):
     return tf.constant(0.01,
                        shape=shape,
                        name=name)
+
 
 # https://r2rt.com/implementing-batch-normalization-in-tensorflow.html
 def batch_norm_wrapper(inputs, is_training, decay=0.999):
@@ -51,7 +51,6 @@ def conv2d_layer(x, w, is_training, keep_prob=1, activation_function=None, name=
 
     name += "/"
     with tf.name_scope(name):
-
         conv = tf.nn.conv2d(x,
                             w,
                             strides=[1, 1, 1, 1],
@@ -97,7 +96,6 @@ def pooling2d_layer(input, keep_prob=1, name="pooling"):
 
 def layer_perceptron(X, W, bias, is_training, name="perceptron",
                      drop_prob=1, activate_function=tf.sigmoid):
-
     name += "/"
 
     with tf.name_scope(name):

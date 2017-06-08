@@ -5,7 +5,11 @@ from PIL import ImageOps
 import random
 import numpy
 import os
+
+from slacker import Slacker
+
 import time
+
 
 def pickle(data, path):
     import pickle as pick
@@ -54,7 +58,16 @@ def look_tunning():
         dir = os.path.join(tuning_folder, folder_name)
         check_point_dir = os.path.join(dir, "checkpoint")
         param_dir = os.path.join(dir, "param")
-        out_dir = os.path.join(dir, "~epoch_000199")
+
+        last_epoch = 199
+        while True:
+            out_dir = os.path.join(dir, "~epoch_" + str(last_epoch + 200).zfill(6))
+            if os.path.exists(out_dir):
+                last_epoch += 200
+            else:
+                break
+
+        out_dir = os.path.join(dir, "~epoch_" + str(last_epoch).zfill(6))
 
         if os.path.exists(check_point_dir) is True:
 
@@ -66,19 +79,21 @@ def look_tunning():
             if not filter(param):
                 continue
 
-            print(dir)
-            if train_acc > 0.40:
+            if train_acc > 0.45 and train_cost > 0.5:
+                print(dir)
                 print("### good")
-                print(train_acc, test_acc, train_cost, test_cost)
+                print("train_acc, test_acc, train_cost, test_cost")
+                print("%.4f      %.4f    %.4f       %.4f" % (train_acc, test_acc, train_cost, test_cost))
+                print("last epoch:", last_epoch)
                 print_param(param)
+                print()
+
 
             else:
                 # print("### bad")
                 # print(train_acc, test_acc, train_cost, test_cost)
                 pass
 
-
-        print()
 
     # saver_file_name = "check_point"
     # saver_path = os.path.join(folder_path, saver_file_name)
@@ -123,6 +138,7 @@ def img2raw(img):
 
     return numpy.array(R + G + B)
 
+
 def get_distored_data(data):
     img = raw2img(data)
 
@@ -145,6 +161,7 @@ def get_distored_data(data):
 
     # save raw img
     return img2raw(img)
+
 
 def gen_train_batch_distorted():
     BATCH_FILE_LABEL = b'batch_label'
@@ -178,13 +195,25 @@ def gen_train_batch_distorted():
             origin = batch[INPUT_DATA][i]
             distored = get_distored_data(origin)
 
-        # new_dir = os.path.join(DEFAULT_BATCH_FOLDER_DIR,
-        #                        "distored_data_batch_%d" % batch_num)
-        # pickle(batch, new_dir)
+            # new_dir = os.path.join(DEFAULT_BATCH_FOLDER_DIR,
+            #                        "distored_data_batch_%d" % batch_num)
+            # pickle(batch, new_dir)
+
+
+def slack_bot(massage):
+    token = "xoxb-194637315491-YE9sLMtbmpFNP1HwerUIcmmi"
+    slack = Slacker(token)
+    slack.chat.post_message('#ml-com-bot', massage)
+    return
 
 
 if __name__ == '__main__':
-    start = time.time()
-    gen_train_batch_distorted()
-    print(time.time()-start)
-    # look_tunning()
+    # start = time.time()
+    # gen_train_batch_distorted()
+    # print(time.time()-start)
+
+
+    look_tunning()
+    #
+    # "param\nparam\nparam"
+    # slack_bot("param\nparam\nparam")
