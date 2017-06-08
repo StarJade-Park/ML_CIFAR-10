@@ -90,7 +90,7 @@ def train_and_test(model, param, saver_path, is_restored=False):
             test_cost_mean = 0.0
             is_training = False
             for step in range(step_size):
-                data = test_batch.next_batch(mini_batch_size, key_list)
+                data = test_batch.next_distorted_batch(mini_batch_size, key_list)
                 feed_dict = {model["X"]: data[Batch.INPUT_DATA],
                              model["Y"]: data[Batch.OUTPUT_DATA],
                              model["Y_label"]: data[Batch.OUTPUT_LABEL],
@@ -131,54 +131,61 @@ if __name__ == '__main__':
     util.pre_load()
 
     # dirs exist check & make dirs
-    if not os.path.exists(FLAGS.dir_train_checkpoint):
-        os.makedirs(FLAGS.dir_train_checkpoint)
-
-    if not os.path.exists(FLAGS.dir_test_checkpoint):
-        os.makedirs(FLAGS.dir_test_checkpoint)
-
-    if not os.path.exists(FLAGS.dir_train_tensorboard):
-        os.makedirs(FLAGS.dir_train_tensorboard)
-
-    if not os.path.exists(FLAGS.dir_test_tensorboard):
-        os.makedirs(FLAGS.dir_test_tensorboard)
+    # if not os.path.exists(FLAGS.dir_train_checkpoint):
+    #     os.makedirs(FLAGS.dir_train_checkpoint)
+    #
+    # if not os.path.exists(FLAGS.dir_test_checkpoint):
+    #     os.makedirs(FLAGS.dir_test_checkpoint)
+    #
+    # if not os.path.exists(FLAGS.dir_train_tensorboard):
+    #     os.makedirs(FLAGS.dir_train_tensorboard)
+    #
+    # if not os.path.exists(FLAGS.dir_test_tensorboard):
+    #     os.makedirs(FLAGS.dir_test_tensorboard)
 
     print("CNN_NN_softmax")
 
     cnn = model.Model_cnn_nn_softmax()
-    param = cnn.gen_param_random()
-    util.print_param(param)
 
-    folder_name = str(datetime.datetime.utcnow()).replace(" ", "_").replace(":", "_")
-    folder_path = os.path.join(".", "save", "tuning", folder_name)
-    saver_file_name = "check_point"
-    saver_path = os.path.join(folder_path, saver_file_name)
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
+    for i in range(100):
+        print("tunning %d" % i)
 
-    param_file_name = "param"
-    param_file_path = os.path.join(folder_path, param_file_name)
-    util.pickle(param, param_file_path)
-    print("save param")
+        param = cnn.gen_param_random()
+        util.print_param(param)
 
-    model = cnn.build_model(param)
-    print("build model")
+        folder_name = str(datetime.datetime.utcnow()).replace(" ", "_").replace(":", "_")
+        folder_path = os.path.join(".", "save", "tuning", folder_name)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
 
-    epoch, out = train_and_test(model, param, saver_path)
-    path = os.path.join(folder_path, "~epoch_" + str(epoch).zfill(6))
-    util.pickle(out, path)
-    print("save out")
+        saver_file_name = "check_point"
+        saver_path = os.path.join(folder_path, saver_file_name)
 
-    param = util.unpickle(param_file_path)
-    print("restore param")
+        param_file_name = "param"
+        param_file_path = os.path.join(folder_path, param_file_name)
+        util.pickle(param, param_file_path)
+        print("save param")
 
-    model = cnn.build_model(param)
+        model = cnn.build_model(param)
+        print("build model")
 
-    print("build model")
-    out = train_and_test(model, param, saver_path, is_restored=True)
-    path = os.path.join(folder_path, "~epoch_" + str(epoch).zfill(6))
-    util.pickle(out, path)
-    print("save out")
+        epoch, out = train_and_test(model, param, saver_path)
+        path = os.path.join(folder_path, "~epoch_" + str(epoch).zfill(6))
+        util.pickle(out, path)
+        print("save out")
+
+
+
+    # param = util.unpickle(param_file_path)
+    # print("restore param")
+    #
+    # model = cnn.build_model(param)
+    #
+    # print("build model")
+    # out = train_and_test(model, param, saver_path, is_restored=True)
+    # path = os.path.join(folder_path, "~epoch_" + str(epoch).zfill(6))
+    # util.pickle(out, path)
+    # print("save out")
 
     # print("Neural Networks")
     # train_and_model(model_NN())

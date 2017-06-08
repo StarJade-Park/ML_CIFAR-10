@@ -224,6 +224,8 @@ class Model_cnn_nn_softmax:
         param["l2_regularizer_beta"] = 0.5
         param["learning_rate"] = 1e-4
 
+        param["param_list"] = self.PARAM_LIST
+
         return param
 
     def build_model(self, param):
@@ -240,6 +242,7 @@ class Model_cnn_nn_softmax:
                                    name='global_epoch', trainable=False)
 
         inc_global_epoch = tf.assign(global_epoch, global_epoch + 1)
+
 
         conv_dropout_rate = tf.placeholder(tf.float32, name="conv_dropout_rate")
         fc_dropout_rate = tf.placeholder(tf.float32, name="fc_dropout_rate")
@@ -507,29 +510,30 @@ class Model_cnn_nn_softmax:
 
     def gen_param_random(self):
         param = {}
-
-        param["epoch_size"] = 2
+        two_list = [2**i for i in range(0,12+1)]
+        param["epoch_size"] = 200
         param["train_size"] = 5000
-        param["mini_batch_size"] = random.randrange(1, 1000, 4)
+
+        param["mini_batch_size"] = two_list[random.randint(3, 10)]
         param["conv_dropout_rate"] = 0.7
         param["fc_dropout_rate"] = 0.5
         param["initializer"] = tf.contrib.layers.xavier_initializer
 
-        param["conv1_out"] = random.randrange(10, 256, 4)
+        param["conv1_out"] = two_list[random.randint(4, 9)]
         param["conv1_filter_size"] = random.randint(3, 5)
         param["conv1_w_shape"] = [param["conv1_filter_size"],
                                   param["conv1_filter_size"],
                                   3,
                                   param["conv1_out"]]
 
-        param["conv2_out"] = random.randrange(10, 256, 4)
+        param["conv2_out"] = two_list[random.randint(4, 9)]
         param["conv2_filter_size"] = random.randint(3, 5)
         param["conv2_w_shape"] = [param["conv2_filter_size"],
                                   param["conv2_filter_size"],
                                   param["conv1_out"],
                                   param["conv2_out"]]
 
-        param["conv3_out"] = random.randrange(10, 256, 4)
+        param["conv3_out"] = two_list[random.randint(4, 9)]
         param["conv3_filter_size"] = random.randint(3, 5)
         param["conv3_w_shape"] = [param["conv3_filter_size"],
                                   param["conv3_filter_size"],
@@ -537,7 +541,7 @@ class Model_cnn_nn_softmax:
                                   param["conv3_out"]]
 
         param["fc_layer_depth"] = 2
-        param["fc_layer_width"] = random.randrange(10, 2048, 10)
+        param["fc_layer_width"] = two_list[random.randint(4, 12)]
         param["fc_input_size"] = 4 * 4 * param["conv3_out"]
         param["fc_layer1_w_shape"] = [4 * 4 * param["conv3_out"], param["fc_layer_width"]]
         param["fc_layer1_bias_shape"] = [param["fc_layer_width"]]
@@ -545,8 +549,9 @@ class Model_cnn_nn_softmax:
         param["fc_layer2_bias_shape"] = [param["fc_layer_width"]]
         param["softmax_w_shape"] = [param["fc_layer_width"], 10]
         param["l2_regularizer_beta"] = random.uniform(0, 1)
-        param["learning_rate"] = 10 ** (random.randint(-5, -1))
+        param["learning_rate"] = 10 ** (random.randint(-5, -4))
 
+        param["param_list"] = self.PARAM_LIST
         return param
 
     pass
