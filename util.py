@@ -5,10 +5,13 @@ from PIL import ImageOps
 import random
 import numpy
 import os
+import Batch
 
 from slacker import Slacker
 
 import time
+import datetime
+import model
 
 
 def pickle(data, path):
@@ -25,111 +28,78 @@ def unpickle(path, encoding="ASCII"):
     return data
 
 
-def print_param(param):
-    print("param info")
-    print("#####################################")
-    for param_name in param["param_list"]:
-        if param_name is not "param_list":
-            print("%s:" % param_name,
-                  param[param_name])
-    print("#####################################")
-    print()
+def get_all_tuning_folder_path():
+    folder_path_list = []
+    tuning_folder_dir = os.path.join(".", "save", "tuning")
+    for folder_name in os.listdir(tuning_folder_dir):
+        folder_path_list += [os.path.join(tuning_folder_dir, folder_name)]
+
+    return folder_path_list
+
+
+def get_last_global_epoch(folder_path):
+    import tensorflow as tf
+    from os.path import join
+
+    cnn = model.Model_cnn_nn_softmax_A()
+    cnn_model = cnn.build_model(load_param(folder_path))
+
+    with tf.Session() as sess:
+        saver = tf.train.Saver()
+        saver.restore(sess, join(folder_path, "check_point"))
+        global_epoch = sess.run(cnn_model["global_epoch"])
+
+    tf.reset_default_graph()
+
+    return global_epoch - 1
 
 
 def pre_load():
     import tensorflow as tf
+
     a = tf.constant(1)
     with tf.Session() as sess:
         sess.run(a)
     tf.reset_default_graph()
+    print("tesorflow loaded")
 
 
-def look_tunning():
-    def filter(param):
-        if param["learning_rate"] == 0.1 or param["learning_rate"] == 0.01:
-            return False
-
-        return True
-
+def look_tuning():
     import os
     tuning_folder = os.path.join(".", "save", "tuning")
 
     for folder_name in os.listdir(tuning_folder):
-        dir = os.path.join(tuning_folder, folder_name)
-        check_point_dir = os.path.join(dir, "checkpoint")
-        param_dir = os.path.join(dir, "param")
+        folder_path = os.path.join(tuning_folder, folder_name)
+        train_acc, test_acc, train_cost, test_cost = load_last_output(folder_path)[-1]
 
-        last_epoch = 199
-        while True:
-            out_dir = os.path.join(dir, "~epoch_" + str(last_epoch + 200).zfill(6))
-            if os.path.exists(out_dir):
-                last_epoch += 200
-            else:
-                break
+        if train_acc > 0.45 and train_cost > 0.5:
+            print_last_output(folder_path)
 
-        out_dir = os.path.join(dir, "~epoch_" + str(last_epoch).zfill(6))
+            print_param(load_param(folder_path))
+            print()
 
-        if os.path.exists(check_point_dir) is True:
-
-            param = unpickle(param_dir)
-
-            out = unpickle(out_dir)
-            train_acc, test_acc, train_cost, test_cost = list(out)[-1]
-
-            if not filter(param):
-                continue
-
-            if train_acc > 0.45 and train_cost > 0.5:
-                print(dir)
-                print("### good")
-                print("train_acc, test_acc, train_cost, test_cost")
-                print("%.4f      %.4f    %.4f       %.4f" % (train_acc, test_acc, train_cost, test_cost))
-                print("last epoch:", last_epoch)
-                print_param(param)
-                print()
-
-
-            else:
-                # print("### bad")
-                # print(train_acc, test_acc, train_cost, test_cost)
-                pass
-
-
-    # saver_file_name = "check_point"
-    # saver_path = os.path.join(folder_path, saver_file_name)
-    #
-    # param_file_name = "param"
-    # param_file_path = os.path.join(folder_path, param_file_name)
-    # util.pickle(param, param_file_path)
-    # print("save param")
-    #
-    # model = cnn.build_model(param)
-    # print("build model")
-    #
-    # epoch, out = train_and_test(model, param, saver_path)
-    # path = os.path.join(folder_path, "~epoch_" + str(epoch).zfill(6))
-    # util.pickle(out, path)
     pass
 
 
-def raw2img(raw):
-    img_mode = 'RGB'
-    img_size = (32, 32)
+def raw2img(raw, size, img_mode="RGB"):
+    img_size = (size, size)
     img = Image.new(img_mode, img_size)
 
-    r, g, b = raw[:1024], raw[1024:1024 * 2], raw[1024 * 2:1024 * 3]
+    raw_size = size * size
+    r, g, b = raw[:raw_size], raw[raw_size:raw_size * 2], raw[raw_size * 2:raw_size * 3]
     rgb_list = list(zip(r, g, b))
-    for x in range(32):
-        for y in range(32):
-            img.putpixel((x, y), rgb_list[y * 32 + x])
+    for x in range(size):
+        for y in range(size):
+            img.putpixel((x, y), rgb_list[y * size + x])
 
     return img
 
 
-def img2raw(img):
+def img2raw(img, size):
     R, G, B = [], [], []
-    for y in range(32):
-        for x in range(32):
+
+    for y in range(size):
+        for x in range(size):
             r_pix, g_pix, b_pix = img.getpixel((x, y))
             # print(r_pix, g_pix, b_pix)
             R += [r_pix]
@@ -139,13 +109,31 @@ def img2raw(img):
     return numpy.array(R + G + B)
 
 
-def get_distored_data(data):
-    img = raw2img(data)
+def crop_img(img, crop_size, center=False):
+    if center:
+        x = 4
+        y = 4
+    else:
+        x = random.randint(0, 7)
+        y = random.randint(0, 7)
+
+    return img.crop((x, y, x + crop_size, y + crop_size))
+
+
+def get_cropped_data(data, size=32, crop_size=24):
+    img = raw2img(data, size)
+    return img2raw(crop_img(img, crop_size, center=True), crop_size)
+
+
+def get_distorted_data(data):
+    img = raw2img(data, 32)
 
     # flip horizonal
     if random.randint(0, 1) == 0:
         img = ImageOps.mirror(img)
+
     # crop
+    img = crop_img(img, 24)
 
     # brightness
     bright_factor_min = 0.5
@@ -160,44 +148,72 @@ def get_distored_data(data):
     img = ImageEnhance.Contrast(img).enhance(contrast_factor)
 
     # save raw img
-    return img2raw(img)
+    return img2raw(img, 24)
 
 
-def gen_train_batch_distorted():
-    BATCH_FILE_LABEL = b'batch_label'
-    INPUT_DATA = b'data'
-    INPUT_FILE_NAME = b'filenames'
-    OUTPUT_LABEL = b'labels'
-    OUTPUT_DATA = "output_list"
+def save_param(param, folder_path):
+    param_file_path = os.path.join(folder_path, "param")
+    pickle(param, param_file_path)
+    print("save param", param_file_path)
 
-    DEFAULT_DIR_LIST = "dir_list"
-    DEFAULT_NAME_KEY_LIST = "key_list"
-    DEFAULT_TRAIN_DATA_BATCH_FILE_FORMAT = "data_batch_%d"
-    DEFAULT_TRAIN_BATCH_FILE_NUMBER = 5
-    DEFAULT_TEST_DATA_BATCH_FILE_FORMAT = "test_batch"
 
-    # TODO LOOK at me this way is better
-    DEFAULT_BATCH_FOLDER_DIR = os.path.join(".", "cifar-10-batches-py")
+def load_param(folder_path):
+    param = unpickle(os.path.join(folder_path, "param"))
+    print("load param", folder_path)
+    return param
 
-    distorted_data_batch_folder = "distorted_data_batch"
-    for batch_num in range(1, 1 + 1):
-        dir = os.path.join(DEFAULT_BATCH_FOLDER_DIR,
-                           DEFAULT_TRAIN_DATA_BATCH_FILE_FORMAT % batch_num)
 
-        print(dir)
-        batch = unpickle(dir, encoding="bytes")
-        size = len(batch[INPUT_DATA])
-        for i in range(size):
-            if i % 100 == 0:
-                print("batch = %d file = %d" % (batch_num, i))
+def save_output(output, epoch, folder_path):
+    output_path = os.path.join(folder_path, "~epoch_" + str(epoch).zfill(6))
+    pickle(output, output_path)
+    print("save output", output_path)
 
-            # load raw img
-            origin = batch[INPUT_DATA][i]
-            distored = get_distored_data(origin)
 
-            # new_dir = os.path.join(DEFAULT_BATCH_FOLDER_DIR,
-            #                        "distored_data_batch_%d" % batch_num)
-            # pickle(batch, new_dir)
+def load_last_output(folder_path):
+    last_epoch = get_last_global_epoch(folder_path)
+    out_dir = os.path.join(folder_path, "~epoch_" + str(last_epoch).zfill(6))
+    return unpickle(out_dir)[-1]
+
+
+def get_new_tuning_folder():
+    folder_name = str(datetime.datetime.utcnow()).replace(" ", "_").replace(":", "_")
+    print(folder_name)
+    folder_path = os.path.join(".", "save", "tuning", folder_name)
+    print(folder_path)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+        print("make dir")
+    return folder_path
+
+
+def print_param(param):
+    ret = ""
+    ret += "param info\n"
+    ret += "#####################################\n"
+    for param_name in param["param_list"]:
+        if param_name is not "param_list":
+            ret += "%s: %s\n" % (param_name, param[param_name])
+    ret += "#####################################\n\n"
+
+    print(ret)
+    return ret
+
+
+def print_last_output(path):
+    train_acc, test_acc, train_cost, test_cost = load_last_output(path)
+    ret = ""
+    ret += "last output info\n"
+    ret += "train_acc, test_acc, train_cost, test_cost\n"
+    ret += "%.4f      %.4f    %.4f       %.4f\n" % (train_acc, test_acc, train_cost, test_cost)
+
+    print(ret)
+    return ret
+
+
+def print_last_global_epoch(path):
+    ret = "last epoch:\n", get_last_global_epoch(path)
+    print(ret)
+    return ret
 
 
 def slack_bot(massage):
@@ -207,13 +223,18 @@ def slack_bot(massage):
     return
 
 
+def time_stamp():
+    # TODO implement this
+    return
+
+
+def strformat():
+    # TODO implement this
+
+    return
+
+
 if __name__ == '__main__':
-    # start = time.time()
-    # gen_train_batch_distorted()
-    # print(time.time()-start)
+    start = time.time()
 
-
-    look_tunning()
-    #
-    # "param\nparam\nparam"
-    # slack_bot("param\nparam\nparam")
+    look_tuning()

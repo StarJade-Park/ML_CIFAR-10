@@ -1,6 +1,6 @@
 import tensorflow as tf
 import tensor_summary as ts
-
+from tensorflow.contrib.layers import xavier_initializer
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
@@ -11,7 +11,9 @@ def dummy_activation_function(x):
 
 def init_weights(shape, initializer=None, name=None):
     if initializer is not None:
-        return tf.get_variable(name, shape, initializer=initializer())
+        return tf.get_variable(name,
+                               shape,
+                               initializer=xavier_initializer())
     else:
         return tf.Variable(tf.random_normal(shape, mean=0.2, stddev=0.01))
 
@@ -95,9 +97,8 @@ def pooling2d_layer(input, keep_prob=1, name="pooling"):
 
 
 def layer_perceptron(X, W, bias, is_training, name="perceptron",
-                     drop_prob=1, activate_function=tf.sigmoid):
+                     drop_prob=1, activate_function=None):
     name += "/"
-
     with tf.name_scope(name):
         # W = tf.Variable(tf.random_normal(input_shape + layer_width))
         # W = init_weights(input_shape + layer_width,
@@ -114,7 +115,11 @@ def layer_perceptron(X, W, bias, is_training, name="perceptron",
         #                                     scope=name + 'bn')
 
         norm = batch_norm_wrapper(tf.matmul(X, W) + bias, is_training)
-        activate = activate_function(norm)
+
+        if activate_function is "relu":
+            activate = tf.nn.relu(norm)
+        else:
+            activate = tf.nn.sigmoid(norm)
 
         activate = tf.nn.dropout(activate,
                                  keep_prob=drop_prob,
@@ -126,11 +131,11 @@ def layer_perceptron(X, W, bias, is_training, name="perceptron",
     return activate
 
 
-def placeholders_init(name="input"):
+def placeholders_init(name="input",):
     # placeHolder
     with tf.name_scope(name):
-        x = tf.placeholder(tf.float32, [None, FLAGS.image_size], name="X")
-        y = tf.placeholder(tf.float32, [None, FLAGS.label_number], name="Y")
+        x = tf.placeholder(tf.float32, [None, 24*24*3], name="X")
+        y = tf.placeholder(tf.float32, [None, 10], name="Y")
         y_label = tf.placeholder(tf.float32, [None], name="Y_label")
 
     ph_set = {"X": x,
