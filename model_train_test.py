@@ -9,7 +9,6 @@ from model import Model_cnn_nn_softmax_B
 from model import Model_cnn_nn_softmax_A
 import model as Model
 
-
 import util
 import cProfile
 import re
@@ -95,7 +94,7 @@ def train_and_test(model, param, folder_path, is_restored=False):
                 _acc, _cost = sess.run([model["batch_acc"], model["cost_L2"]],
                                        feed_dict=feed_dict)
 
-                train_acc += _acc / step_size
+                train_acc += (_acc / step_size) * 100
                 train_cost_mean += _cost / step_size
 
             # test step
@@ -114,18 +113,16 @@ def train_and_test(model, param, folder_path, is_restored=False):
                 _acc, _cost = sess.run([model["batch_acc"], model["cost"]],
                                        feed_dict=feed_dict)
 
-                test_acc += _acc / step_size
+                test_acc += (_acc / step_size) * 100
                 test_cost_mean += _cost / step_size
 
             global_epoch = sess.run(model["global_epoch"])
             sess.run(model["inc_global_epoch"])
-            # "105  | time     | 0.348125 | 0.323000 | 670.941252 | 1952.486084 |""
-
 
             print("%2.d  |" % global_epoch,
                   "%.2f(s) |" % (time.time() - start),
-                  "%f  |" % train_acc,
-                  "%f  |" % test_acc,
+                  "%.4f  |" % train_acc,
+                  "%.4f  |" % test_acc,
                   "%f   |" % train_cost_mean,
                   "%f   |" % test_cost_mean
                   )
@@ -191,20 +188,19 @@ if __name__ == '__main__':
 
     start = time.time()
 
-
     model = Model_cnn_nn_softmax_A()
     print("load model")
 
-    # param = model.default_param()
+    param = model.default_param()
     # param[Model.CONV_DROPOUT_RATE] = 1
     # param[Model.FC_DROPOUT_RATE] = 1
     # param[Model.LEARNING_RATE] = 0.1
-    # print("get param")
-    #
-    # folder_path = util.get_new_tuning_folder()
-    # print("get folder path")
-    #
-    # gen_tuning_model(model, param, folder_path)
+    print("get param")
+
+    folder_path = util.get_new_tuning_folder()
+    print("get folder path")
+
+    gen_tuning_model(model, param, folder_path)
 
     # util.slack_bot("small epoch end")
     # msg = "time %d(s)" % (time.time() - start)
@@ -215,32 +211,29 @@ if __name__ == '__main__':
     # util.slack_bot(msg)
 
     # gen new model
-    for tuning_folder_path in util.get_all_tuning_folder_path():
-        print(util.get_all_tuning_folder_path())
-        for i in range(100):
-            print(tuning_folder_path, i)
-            start = time.time()
-            param = util.load_param(tuning_folder_path)
-            param["learning_rate"] = 0.01
-            # param[Model.CONV_DROPOUT_RATE] = 1
-            # param[Model.FC_DROPOUT_RATE] = 1
+    print(util.get_all_tuning_folder_path())
+    tuning_folder_path = folder_path
+    for i in range(100):
+        print(tuning_folder_path, i)
+        start = time.time()
+        param = util.load_param(tuning_folder_path)
 
-            restore_tuning_model(model, param, tuning_folder_path)
+        restore_tuning_model(model, param, tuning_folder_path)
 
-            # if i %10 == 0:
-            #     util.slack_bot("small epoch end")
-            #     msg = "time %d(s)" % (time.time() - start)
-            #     util.slack_bot(msg)
-            #     msg = util.print_last_output(tuning_folder_path)
-            #     util.slack_bot(msg)
-            #     msg = util.print_param(param)
-            #     util.slack_bot(msg)
+        # if i %10 == 0:
+        #     util.slack_bot("small epoch end")
+        #     msg = "time %d(s)" % (time.time() - start)
+        #     util.slack_bot(msg)
+        #     msg = util.print_last_output(tuning_folder_path)
+        #     util.slack_bot(msg)
+        #     msg = util.print_param(param)
+        #     util.slack_bot(msg)
 
-            # except:
-            #     # util.slack_bot("error look at me")
-            #     pass
-            # finally:
-            #     train_batch.thread_exit()
-            #     test_batch.thread_exit()
-            #     # util.slack_bot("###### end")
-            # pass
+        # except:
+        #     # util.slack_bot("error look at me")
+        #     pass
+        # finally:
+        #     train_batch.thread_exit()
+        #     test_batch.thread_exit()
+        #     # util.slack_bot("###### end")
+        # pass

@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensor_summary as ts
 from tensorflow.contrib.layers import xavier_initializer
+
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
@@ -9,17 +10,21 @@ def dummy_activation_function(x):
     return x
 
 
-def init_weights(shape, initializer=None, name=None):
+def init_weights(shape, initializer=None, name=None, decay=None):
     if initializer is not None:
-        return tf.get_variable(name,
-                               shape,
-                               initializer=xavier_initializer())
+        var = tf.get_variable(name,
+                              shape,
+                              initializer=xavier_initializer())
     else:
-        return tf.Variable(tf.random_normal(shape, mean=0.2, stddev=0.01))
+        var = tf.Variable(tf.random_normal(shape, mean=0.2, stddev=0.01))
+
+    if decay is not None:
+        var = tf.mul(var, decay)
+    return var
 
 
 def init_bias(shape, name):
-    return tf.constant(0.01,
+    return tf.constant(0.0,
                        shape=shape,
                        name=name)
 
@@ -83,7 +88,7 @@ def pooling2d_layer(input, keep_prob=1, name="pooling"):
 
     with tf.name_scope(name):
         max_pooling = tf.nn.max_pool(input,
-                                     ksize=[1, 2, 2, 1],
+                                     ksize=[1, 3, 3, 1],
                                      strides=[1, 2, 2, 1],
                                      padding="SAME",
                                      name="max_pooling")
@@ -131,10 +136,10 @@ def layer_perceptron(X, W, bias, is_training, name="perceptron",
     return activate
 
 
-def placeholders_init(name="input",):
+def placeholders_init(size, name="input"):
     # placeHolder
     with tf.name_scope(name):
-        x = tf.placeholder(tf.float32, [None, 24*24*3], name="X")
+        x = tf.placeholder(tf.float32, [None, size * size * 3], name="X")
         y = tf.placeholder(tf.float32, [None, 10], name="Y")
         y_label = tf.placeholder(tf.float32, [None], name="Y_label")
 

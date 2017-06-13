@@ -17,7 +17,7 @@ BATCH_INIT_ERROR_MSG = "Config init error : option is None," \
 DEFAULT_DIR_LIST = "dir_list"
 DEFAULT_NAME_KEY_LIST = "key_list"
 DEFAULT_TRAIN_DATA_BATCH_FILE_FORMAT = "data_batch_%d"
-DEFAULT_TRAIN_BATCH_FILE_NUMBER = 5
+DEFAULT_TRAIN_BATCH_FILE_NUMBER = 2
 DEFAULT_TEST_DATA_BATCH_FILE_FORMAT = "test_batch"
 # DEFAULT_BATCH_FOLDER = ".\\cifar-10-batches-py" # windows
 # DEFAULT_BATCH_FOLDER = "./cifar-10-batches-py" # ubuntu
@@ -88,7 +88,7 @@ class Batch:
 
         self.Q_PUSH_SIZE = 100
         self.MAX_Q_SIZE = 1024 * 16
-        self.Q_SIZE = 1024 * 4
+        self.Q_SIZE = 1024 * 1
         self.Thread_exit = False
         self.Thread_run = False
         self.dict_q = {}
@@ -100,13 +100,13 @@ class Batch:
         for key in self.batch:
             self.dict_q[key] = queue.Queue()
 
-        thread = threading.Thread(target=self.update_dict_q)
+        thread = threading.Thread(target=self.thread_provide_distorted_data)
         thread.start()
 
     def get_q_size(self):
         return self.dict_q[INPUT_DATA].qsize()
 
-    def update_dict_q(self):
+    def thread_provide_distorted_data(self):
         key_list = [INPUT_DATA, OUTPUT_LABEL, OUTPUT_DATA]
         push_size = self.Q_PUSH_SIZE
 
@@ -122,9 +122,11 @@ class Batch:
 
             # push data
             if self.option == Config.OPTION_TRAIN_SET:
-                index = random.randint(0, self.batch_size - push_size - 1)
+                # index = random.randint(0, self.batch_size - push_size - 1)
+                index = (index + push_size) % self.batch_size
             else:
                 index = (index + push_size) % self.batch_size
+
                 # print(range(index, index + size))
 
             for i in range(index, index + push_size):
@@ -136,7 +138,6 @@ class Batch:
                             self.dict_q[key].put_nowait(util.get_cropped_data(self.batch[key][i]))
                     else:
                         self.dict_q[key].put_nowait(self.batch[key][i])
-
 
     def stop_thread(self):
         self.Thread_run = False
@@ -204,7 +205,7 @@ class Batch:
     # default is
     # ex) key_list = ["X", "Y"] result is
     # {"X" = [...], "Y" = [...]}
-    def next_batch(self, size, key_list=None):
+    def next_distorted_batch(self, size, key_list=None):
         if key_list is None:
             key_list = self.config[Config.KEY_LIST]
 
@@ -224,21 +225,18 @@ class Batch:
 
         return batch
 
-    def next_distorted_batch(self, size, key_list=None):
+    def next_batch(self, size, key_list=None):
         if key_list is None:
             key_list = self.config[Config.KEY_LIST]
 
+        index = self.batch_index
+        self.batch_index = (self.batch_index + size) % self.batch_size
+
         batch = {}
         for key in key_list:
-            part = self.batch[key][self.batch_index:self.batch_index + size]
+            part = self.batch[key][index:index + size]
             batch[key] = part[:size]
 
-        if INPUT_DATA in key_list:
-            cropped_data_list = []
-            for data in batch[INPUT_DATA]:
-                cropped_data_list += [util.get_distorted_data(data)]
-
-            batch[INPUT_DATA] = cropped_data_list
         return batch
 
 
@@ -300,7 +298,7 @@ if __name__ == '__main__':
     key_list = [INPUT_DATA, OUTPUT_LABEL, OUTPUT_DATA]
     for i in range(1000):
         start = time.time()
-        q = batch.next_batch(8, key_list)
+        q = batch.next_batch_from_q(8, key_list)
         print(time.time() - start)
     time_stamp = time.localtime(time.time() - start)
 

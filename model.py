@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensor_summary as ts
 import neural_networks as nn
 import random
+
 # TODO write more comment please
 
 
@@ -171,9 +172,6 @@ def model_NN_softmax():
     return tensor_set
 
 
-
-
-
 class Model_cnn_nn_softmax_A:
     PARAM_LIST = [EPOCH_SIZE,
                   TRAIN_SIZE,
@@ -221,9 +219,9 @@ class Model_cnn_nn_softmax_A:
         param = dict()
         param["param_list"] = self.PARAM_LIST
 
-        param[EPOCH_SIZE] = 50
+        param[EPOCH_SIZE] = 25
         param[MINI_BATCH_SIZE] = 100
-        param[TRAIN_SIZE] = 1000
+        param[TRAIN_SIZE] = 5000
         param[TEST_SIZE] = 1000
 
         #
@@ -232,28 +230,30 @@ class Model_cnn_nn_softmax_A:
         # param[TRAIN_SIZE] = 4
         # param[TEST_SIZE] = 4
 
-        param[CONV_DROPOUT_RATE] = 0.85
-        param[FC_DROPOUT_RATE] = 0.7
+        # param[CONV_DROPOUT_RATE] = 0.25
+        # param[FC_DROPOUT_RATE] = 0.25
+        param[CONV_DROPOUT_RATE] = 1
+        param[FC_DROPOUT_RATE] = 1
 
         param[INITIALIZER] = tf.contrib.layers.xavier_initializer
 
-        param[INPUT_IMG_SIZE] = 24
+        param[INPUT_IMG_SIZE] = 32
 
         param["conv1_out"] = 128
-        param["conv1_filter_size"] = 3
+        param["conv1_filter_size"] = 5
         param["conv1_w_shape"] = [param["conv1_filter_size"],
                                   param["conv1_filter_size"],
                                   3,
                                   param["conv1_out"]]
 
         param["conv2_out"] = 512
-        param["conv2_filter_size"] = 3
+        param["conv2_filter_size"] = 5
         param["conv2_w_shape"] = [param["conv2_filter_size"],
                                   param["conv2_filter_size"],
                                   param["conv1_out"],
                                   param["conv2_out"]]
 
-        param["conv3_out"] = 64
+        param["conv3_out"] = 512
         param["conv3_filter_size"] = 3
         param["conv3_w_shape"] = [param["conv3_filter_size"],
                                   param["conv3_filter_size"],
@@ -261,21 +261,24 @@ class Model_cnn_nn_softmax_A:
                                   param["conv3_out"]]
 
         param["fc_layer_depth"] = 2
-        param["fc_layer_width"] = 2048
-        param["fc_input_size"] = 3 * 3 * param["conv3_out"]
-        param["fc_layer1_w_shape"] = [3 * 3 * param["conv3_out"], param["fc_layer_width"]]
+        param["fc_layer_width"] = 512
+
+        size = int(param[INPUT_IMG_SIZE] / 8)
+        param["fc_input_size"] = size * size * param["conv3_out"]
+
+        param["fc_layer1_w_shape"] = [param["fc_input_size"], param["fc_layer_width"]]
         param["fc_layer1_bias_shape"] = [param["fc_layer_width"]]
         param["fc_layer2_w_shape"] = [param["fc_layer_width"], param["fc_layer_width"]]
         param["fc_layer2_bias_shape"] = [param["fc_layer_width"]]
 
         param["softmax_w_shape"] = [param["fc_layer_width"], 10]
-        param["l2_regularizer_beta"] = 0.002
+        param["l2_regularizer_beta"] = 0.003
         param["learning_rate"] = 1e-4
 
         return param
 
     def build_model(self, param):
-        ph_set = nn.placeholders_init()
+        ph_set = nn.placeholders_init(param[INPUT_IMG_SIZE])
 
         x_ = tf.reshape(ph_set["X"], [-1, param[INPUT_IMG_SIZE], param[INPUT_IMG_SIZE], 3])
         is_training = tf.placeholder(tf.bool, name="is_training")
@@ -293,7 +296,7 @@ class Model_cnn_nn_softmax_A:
 
         initializer = param[INITIALIZER]
 
-        with tf.name_scope("conv_layer"):
+        with tf.name_scope("conv_layer1"):
             conv1_w = nn.init_weights(param["conv1_w_shape"], initializer, "conv1/w")
             conv1 = nn.conv2d_layer(x_,
                                     conv1_w,
@@ -302,7 +305,7 @@ class Model_cnn_nn_softmax_A:
                                     name="conv1")
 
             pooling1 = nn.pooling2d_layer(conv1, name="pooling1")
-
+        with tf.name_scope("conv_layer2"):
             conv2_w = nn.init_weights(param["conv2_w_shape"], initializer, "conv2/w")
             conv2 = nn.conv2d_layer(pooling1,
                                     conv2_w,
@@ -311,7 +314,7 @@ class Model_cnn_nn_softmax_A:
                                     name="conv2")
 
             pooling2 = nn.pooling2d_layer(conv2, name="pooling2")
-
+        with tf.name_scope("conv_layer3"):
             conv3_w = nn.init_weights(param["conv3_w_shape"], initializer, "conv3/w")
             conv3 = nn.conv2d_layer(pooling2,
                                     conv3_w,
@@ -321,15 +324,15 @@ class Model_cnn_nn_softmax_A:
 
             pooling3 = nn.pooling2d_layer(conv3, name="pooling3")
 
-
-        fc_input_size = param["fc_input_size"]
+        fc_input_size = param[FC_INPUT_RESHAPE_SIZE]
         conv_out_reshape = tf.reshape(pooling3, [-1, fc_input_size])
 
         # print(conv_out_reshape)
         activate_function = "relu"
-        with tf.name_scope("fc_layer"):
+        with tf.name_scope("fc_layer1"):
             fc_layer1_w = nn.init_weights(param["fc_layer1_w_shape"],
                                           initializer=initializer,
+                                          decay=0.9999,
                                           name="fc_layer1/weight")
 
             fc_layer1_bias = nn.init_bias(param["fc_layer1_bias_shape"], name="fc_layer1/bias")
@@ -342,8 +345,10 @@ class Model_cnn_nn_softmax_A:
                                             drop_prob=fc_dropout_rate,
                                             activate_function=activate_function)
 
+        with tf.name_scope("fc_layer2"):
             fc_layer2_w = nn.init_weights(param["fc_layer2_w_shape"],
                                           initializer=initializer,
+                                          decay=0.9999,
                                           name="fc_layer2/weight")
             fc_layer2_bias = nn.init_bias(param["fc_layer2_bias_shape"], name="fc_layer2/bias")
             fc_layer2 = nn.layer_perceptron(fc_layer1,
@@ -353,7 +358,6 @@ class Model_cnn_nn_softmax_A:
                                             name="fc_layer2",
                                             drop_prob=1,
                                             activate_function=activate_function)
-
 
         # softmax
         softmax_w = nn.init_weights(param[SOFTMAX_WEIGHT_SHAPE])
@@ -373,12 +377,10 @@ class Model_cnn_nn_softmax_A:
         beta = param[L2_REGULARIZER_BETA]
         cost_L2 = tf.add(cost, l2_regularizer * beta, name="cost_L2")
 
-
-
         # train_op
         learning_rate = param[LEARNING_RATE]
-        # train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost_L2, global_step=global_step)
-        train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost, global_step=global_step)
+        train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost_L2, global_step=global_step)
+        # train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost, global_step=global_step)
         # train_op = tf.train.AdadeltaOptimizer(learning_rate).minimize(cost)
         # train_op = tf.train.AdagradOptimizer(learning_rate).minimize(cost)
 
@@ -387,9 +389,7 @@ class Model_cnn_nn_softmax_A:
         predicted_label = tf.equal(tf.argmax(h, 1), tf.argmax(ph_set["Y"], 1))
         batch_acc = tf.reduce_mean(tf.cast(predicted_label, tf.float32))
 
-
         init_op = tf.global_variables_initializer()
-
 
         summary = tf.summary.merge_all()
         tensor_set = {"X": ph_set["X"],
@@ -433,7 +433,7 @@ class Model_cnn_nn_softmax_A:
 
     def gen_param_random(self):
         param = {}
-        two_list = [2**i for i in range(0,12+1)]
+        two_list = [2 ** i for i in range(0, 12 + 1)]
         param["epoch_size"] = 200
         param["train_size"] = 5000
 
@@ -625,7 +625,7 @@ class Model_cnn_nn_softmax_B:
         param["fc_layer_width"] = 2048
         param["fc_input_size"] = 3 * 3 * param["conv9_out"]
 
-        param["fc_layer1_w_shape"] = [3 * 3 * param["conv9_out"], param["fc_layer_width"]]
+        param["fc_layer1_w_shape"] = [param["fc_input_size"], param["fc_layer_width"]]
         param["fc_layer1_bias_shape"] = [param["fc_layer_width"]]
 
         param["fc_layer2_w_shape"] = [param["fc_layer_width"], param["fc_layer_width"]]

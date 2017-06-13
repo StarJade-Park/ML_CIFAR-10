@@ -121,8 +121,7 @@ def crop_img(img, crop_size, center=False):
 
 
 def get_cropped_data(data, size=32, crop_size=24):
-    img = raw2img(data, size)
-    return img2raw(crop_img(img, crop_size, center=True), crop_size)
+    return img2raw(crop_img(raw2img(data, size), crop_size, center=True), crop_size)
 
 
 def get_distorted_data(data):
@@ -132,23 +131,23 @@ def get_distorted_data(data):
     if random.randint(0, 1) == 0:
         img = ImageOps.mirror(img)
 
-    # crop
-    img = crop_img(img, 24)
 
     # brightness
-    bright_factor_min = 0.5
-    bright_factor_max = 1.5
+    bright_factor_min = 0.2
+    bright_factor_max = 1.8
     bright_factor = random.uniform(bright_factor_min, bright_factor_max)
     img = ImageEnhance.Brightness(img).enhance(bright_factor)
 
     # contrast
-    contrast_factor_min = 0.5
-    contrast_factor_max = 1.5
+    contrast_factor_min = 0.2
+    contrast_factor_max = 1.8
     contrast_factor = random.uniform(contrast_factor_min, contrast_factor_max)
     img = ImageEnhance.Contrast(img).enhance(contrast_factor)
 
-    # save raw img
-    return img2raw(img, 24)
+    # crop
+    img = crop_img(img, 24)
+    raw = img2raw(img, 24)
+    return raw
 
 
 def save_param(param, folder_path):
