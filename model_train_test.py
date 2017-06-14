@@ -26,15 +26,10 @@ test_batch = None
 def load_batch():
     global train_batch_config, train_batch, test_batch_config, test_batch
 
-    train_batch_config = Batch.Config(Batch.Config.OPTION_TRAIN_SET)
+    train_batch_config = Batch.Config(Batch.Config.OPTION_TRAIN_SET, 5)
     train_batch = Batch.Batch(train_batch_config)
     test_batch_config = Batch.Config(Batch.Config.OPTION_TEST_SET)
     test_batch = Batch.Batch(test_batch_config)
-
-    train_batch.resume_thread()
-    test_batch.resume_thread()
-
-    print("batch_loaded start Q_ing....")
 
 
 # TODO split function train_model and test_model
@@ -58,8 +53,7 @@ def train_and_test(model, param, folder_path, is_restored=False):
     # with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess, tf.device("/CPU:0"):
     with tf.Session() as sess:
         # tensorboard
-        # train_writer = tf.summary.FileWriter(FLAGS.dir_train_tensorboard, sess.graph)
-        # test_writer = tf.summary.FileWriter(FLAGS.dir_test_tensorboard)
+        train_writer = tf.summary.FileWriter(folder_path, sess.graph)
 
         print(datetime.datetime.utcnow(), "Train Start...")
         print("epoch| time     | train acc | test acc  | train cost   | test cost")
@@ -68,6 +62,10 @@ def train_and_test(model, param, folder_path, is_restored=False):
         if is_restored:
             saver.restore(sess, saver_path)
             print("restored")
+
+        summary_train, global_epoch = sess.run([model[Model.SUMMARY], model[Model.GLOBAL_EPOCH]])
+
+        train_writer.add_summary(summary=summary_train, global_step=global_epoch)
 
         for epoch in range(param["epoch_size"]):
             train_acc = 0.
@@ -89,9 +87,9 @@ def train_and_test(model, param, folder_path, is_restored=False):
                              model["is_training"]: True,
                              }
 
-                sess.run(model["train_op"], feed_dict)
+                sess.run(model[Model.TRAIN_OP], feed_dict)
 
-                _acc, _cost = sess.run([model["batch_acc"], model["cost_L2"]],
+                _acc, _cost = sess.run([model[Model.BATCH_ACC], model[Model.L2_COST]],
                                        feed_dict=feed_dict)
 
                 train_acc += (_acc / step_size) * 100
@@ -146,10 +144,6 @@ def train_and_test(model, param, folder_path, is_restored=False):
 
 
 def gen_tuning_model(tuning_model, param, path):
-    # print log
-    print("gen tuning model")
-    util.print_param(param)
-
     # gen folder and start training
     epoch, output = train_and_test(tuning_model, param, path)
 
@@ -169,11 +163,6 @@ def resume_all_tuning_model():
 
 
 def restore_tuning_model(tuning_model, param, path):
-    # print log
-    print("tuning folder path", path)
-    # util.print_last_output(path)
-    util.print_param(param)
-
     epoch, output = train_and_test(tuning_model,
                                    param,
                                    path,
@@ -181,59 +170,44 @@ def restore_tuning_model(tuning_model, param, path):
     util.save_output(output, epoch, path)
 
 
-if __name__ == '__main__':
-    # try:
+def start_with_new(train_model):
     util.pre_load()
     load_batch()
 
-    start = time.time()
-
-    model = Model_cnn_nn_softmax_A()
-    print("load model")
-
-    param = model.default_param()
-    # param[Model.CONV_DROPOUT_RATE] = 1
-    # param[Model.FC_DROPOUT_RATE] = 1
-    # param[Model.LEARNING_RATE] = 0.1
+    param = train_model.default_param()
+    util.print_param(param)
     print("get param")
 
     folder_path = util.get_new_tuning_folder()
     print("get folder path")
 
-    gen_tuning_model(model, param, folder_path)
+    gen_tuning_model(train_model, param, folder_path)
 
-    # util.slack_bot("small epoch end")
-    # msg = "time %d(s)" % (time.time() - start)
-    # util.slack_bot(msg)
-    # msg = util.print_last_output(folder_path)
-    # util.slack_bot(msg)
-    # msg = util.print_param(param)
-    # util.slack_bot(msg)
-
-    # gen new model
-    print(util.get_all_tuning_folder_path())
-    tuning_folder_path = folder_path
     for i in range(100):
-        print(tuning_folder_path, i)
-        start = time.time()
-        param = util.load_param(tuning_folder_path)
+        print(folder_path, i)
+        restore_tuning_model(train_model, param, folder_path)
 
-        restore_tuning_model(model, param, tuning_folder_path)
 
-        # if i %10 == 0:
-        #     util.slack_bot("small epoch end")
-        #     msg = "time %d(s)" % (time.time() - start)
-        #     util.slack_bot(msg)
-        #     msg = util.print_last_output(tuning_folder_path)
-        #     util.slack_bot(msg)
-        #     msg = util.print_param(param)
-        #     util.slack_bot(msg)
+def continue_train(train_model, path):
+    param = util.load_param(path)
+    param[Model.LEARNING_RATE] = 1e-5
+    # param[Model.L2_REGULARIZER_BETA] = 0.1
+    util.print_param(param)
 
-        # except:
-        #     # util.slack_bot("error look at me")
-        #     pass
-        # finally:
-        #     train_batch.thread_exit()
-        #     test_batch.thread_exit()
-        #     # util.slack_bot("###### end")
-        # pass
+    for i in range(100):
+        print(path, i)
+
+        restore_tuning_model(train_model, param, path)
+
+
+if __name__ == '__main__':
+    # start_with_new(Model_cnn_nn_softmax_A())
+
+    # path = ".\\save\\model_A backUp\\2017-06-13_13_37_44.075433"
+    util.pre_load()
+    load_batch()
+
+    path = ".\\save\\tuning\\2017-06-13_21_20_41.103668"
+    path = ".\\save\\tuning\\2017-06-13_21_20_41.103668"
+    continue_train(Model_cnn_nn_softmax_A(), path)
+    pass

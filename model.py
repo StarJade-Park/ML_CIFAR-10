@@ -5,7 +5,6 @@ import random
 
 # TODO write more comment please
 
-
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
@@ -35,6 +34,19 @@ FC_LAYER_DEPTH = "fc_layer_depth"
 LEARNING_RATE = "learning_rate"
 L2_REGULARIZER_BETA = "l2_regularizer_beta"
 SOFTMAX_WEIGHT_SHAPE = "softmax_w_shape"
+
+COST = "cost"
+L2_COST = "l2_cost"
+
+SUMMARY = "summary"
+INC_GLOBAL_EPOCH = "inc_global_epoch"
+GLOBAL_EPOCH = "global_epoch"
+IS_TRAINING = "is_training"
+INIT_OP = "init_op"
+BATCH_ACC = "batch_acc"
+PREDICTED_LABEL = "predicted_label"
+TRAIN_OP = "train_op"
+HYPOTHESIS = "h"
 
 
 # TODO add argv for modeling function ex) layer width, layer number
@@ -197,19 +209,20 @@ class Model_cnn_nn_softmax_A:
                   "conv3_filter_size",
                   "conv3_w_shape",
 
-                  "fc_layer_depth",
+                  FC_LAYER_DEPTH,
                   "fc_layer_width",
-                  "fc_input_size",
+                  FC_INPUT_RESHAPE_SIZE,
+
                   "fc_layer1_w_shape",
                   "fc_layer1_bias_shape",
                   "fc_layer2_w_shape",
                   "fc_layer2_bias_shape",
 
-                  "softmax_w_shape",
+                  SOFTMAX_WEIGHT_SHAPE,
 
-                  "l2_regularizer_beta",
+                  L2_REGULARIZER_BETA,
 
-                  "learning_rate",
+                  LEARNING_RATE,
                   ]
 
     def __init__(self):
@@ -217,7 +230,7 @@ class Model_cnn_nn_softmax_A:
 
     def default_param(self):
         param = dict()
-        param["param_list"] = self.PARAM_LIST
+        param[PARAM_LIST] = self.PARAM_LIST
 
         param[EPOCH_SIZE] = 25
         param[MINI_BATCH_SIZE] = 100
@@ -232,8 +245,8 @@ class Model_cnn_nn_softmax_A:
 
         # param[CONV_DROPOUT_RATE] = 0.25
         # param[FC_DROPOUT_RATE] = 0.25
-        param[CONV_DROPOUT_RATE] = 1
-        param[FC_DROPOUT_RATE] = 1
+        param[CONV_DROPOUT_RATE] = .7
+        param[FC_DROPOUT_RATE] = .5
 
         param[INITIALIZER] = tf.contrib.layers.xavier_initializer
 
@@ -260,20 +273,20 @@ class Model_cnn_nn_softmax_A:
                                   param["conv2_out"],
                                   param["conv3_out"]]
 
-        param["fc_layer_depth"] = 2
-        param["fc_layer_width"] = 512
-
         size = int(param[INPUT_IMG_SIZE] / 8)
-        param["fc_input_size"] = size * size * param["conv3_out"]
+        param[FC_INPUT_RESHAPE_SIZE] = size * size * param["conv3_out"]
+
+        param[FC_LAYER_DEPTH] = 2
+        param["fc_layer_width"] = 1024
 
         param["fc_layer1_w_shape"] = [param["fc_input_size"], param["fc_layer_width"]]
         param["fc_layer1_bias_shape"] = [param["fc_layer_width"]]
         param["fc_layer2_w_shape"] = [param["fc_layer_width"], param["fc_layer_width"]]
         param["fc_layer2_bias_shape"] = [param["fc_layer_width"]]
 
-        param["softmax_w_shape"] = [param["fc_layer_width"], 10]
-        param["l2_regularizer_beta"] = 0.003
-        param["learning_rate"] = 1e-4
+        param[SOFTMAX_WEIGHT_SHAPE] = [param["fc_layer_width"], 10]
+        param[L2_REGULARIZER_BETA] = 0.005
+        param[LEARNING_RATE] = 1e-4
 
         return param
 
@@ -284,10 +297,12 @@ class Model_cnn_nn_softmax_A:
         is_training = tf.placeholder(tf.bool, name="is_training")
 
         global_step = tf.Variable(initial_value=0,
-                                  name='global_step', trainable=False)
+                                  name='global_step',
+                                  trainable=False)
 
         global_epoch = tf.Variable(initial_value=0,
-                                   name='global_epoch', trainable=False)
+                                   name='global_epoch',
+                                   trainable=False)
 
         inc_global_epoch = tf.assign(global_epoch, global_epoch + 1)
 
@@ -325,11 +340,11 @@ class Model_cnn_nn_softmax_A:
             pooling3 = nn.pooling2d_layer(conv3, name="pooling3")
 
         fc_input_size = param[FC_INPUT_RESHAPE_SIZE]
-        conv_out_reshape = tf.reshape(pooling3, [-1, fc_input_size])
+        fc_input_reshape = tf.reshape(pooling3, [-1, fc_input_size])
 
         # print(conv_out_reshape)
         activate_function = "relu"
-        with tf.name_scope("fc_layer1"):
+        with tf.name_scope("full_connect_layer1"):
             fc_layer1_w = nn.init_weights(param["fc_layer1_w_shape"],
                                           initializer=initializer,
                                           decay=0.9999,
@@ -337,7 +352,7 @@ class Model_cnn_nn_softmax_A:
 
             fc_layer1_bias = nn.init_bias(param["fc_layer1_bias_shape"], name="fc_layer1/bias")
 
-            fc_layer1 = nn.layer_perceptron(conv_out_reshape,
+            fc_layer1 = nn.layer_perceptron(fc_input_reshape,
                                             fc_layer1_w,
                                             fc_layer1_bias,
                                             is_training,
@@ -345,7 +360,7 @@ class Model_cnn_nn_softmax_A:
                                             drop_prob=fc_dropout_rate,
                                             activate_function=activate_function)
 
-        with tf.name_scope("fc_layer2"):
+        with tf.name_scope("full_connect_layer2"):
             fc_layer2_w = nn.init_weights(param["fc_layer2_w_shape"],
                                           initializer=initializer,
                                           decay=0.9999,
@@ -362,6 +377,7 @@ class Model_cnn_nn_softmax_A:
         # softmax
         softmax_w = nn.init_weights(param[SOFTMAX_WEIGHT_SHAPE])
         h = tf.nn.softmax(tf.matmul(fc_layer2, softmax_w))
+
         # print(h)
         # cross entropy
         cost = tf.reduce_mean(-tf.reduce_sum(ph_set["Y"] * tf.log(h + 1e-10), reduction_indices=1), name="cost")
@@ -375,19 +391,20 @@ class Model_cnn_nn_softmax_A:
                                         + tf.nn.l2_loss(softmax_w))
 
         beta = param[L2_REGULARIZER_BETA]
-        cost_L2 = tf.add(cost, l2_regularizer * beta, name="cost_L2")
+        L2_cost = tf.add(cost, l2_regularizer * beta, name="cost_L2")
 
         # train_op
         learning_rate = param[LEARNING_RATE]
-        train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost_L2, global_step=global_step)
+        train_op = tf.train.AdamOptimizer(learning_rate).minimize(L2_cost, global_step=global_step)
         # train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost, global_step=global_step)
         # train_op = tf.train.AdadeltaOptimizer(learning_rate).minimize(cost)
         # train_op = tf.train.AdagradOptimizer(learning_rate).minimize(cost)
 
         # prediction and acc
 
-        predicted_label = tf.equal(tf.argmax(h, 1), tf.argmax(ph_set["Y"], 1))
-        batch_acc = tf.reduce_mean(tf.cast(predicted_label, tf.float32))
+        predicted_label = tf.argmax(h, 1)
+        data_label = tf.argmax(ph_set["Y"], 1)
+        batch_acc = tf.reduce_mean(tf.cast(tf.equal(predicted_label, data_label), tf.float32))
 
         init_op = tf.global_variables_initializer()
 
@@ -407,26 +424,26 @@ class Model_cnn_nn_softmax_A:
                       "pooling1": pooling1,
                       "pooling2": pooling2,
                       "pooling3": pooling3,
-                      "conv_out_reshape": conv_out_reshape,
+                      "fc_input_reshape": fc_input_reshape,
 
                       "fc_layer1": fc_layer1,
                       "fc_layer2": fc_layer2,
                       "softmax_w": softmax_w,
-                      "h": h,
-                      "cost": cost,
-                      "cost_L2": cost_L2,
+                      HYPOTHESIS: h,
+                      COST: cost,
+                      L2_COST: L2_cost,
                       "train_op": train_op,
                       "predicted_label": predicted_label,
                       "batch_acc": batch_acc,
 
                       # "batch_hit_count ": batch_hit_count,
                       "init_op": init_op,
-                      "summary": summary,
+                      SUMMARY: summary,
                       FC_DROPOUT_RATE: fc_dropout_rate,
                       CONV_DROPOUT_RATE: conv_dropout_rate,
-                      "is_training": is_training,
-                      "global_epoch": global_epoch,
-                      "inc_global_epoch": inc_global_epoch
+                      IS_TRAINING: is_training,
+                      GLOBAL_EPOCH: global_epoch,
+                      INC_GLOBAL_EPOCH: inc_global_epoch
                       }
         # save tensor
         return tensor_set
@@ -542,9 +559,9 @@ class Model_cnn_nn_softmax_B:
         param = dict()
         param[PARAM_LIST] = self.PARAM_LIST
 
-        param[EPOCH_SIZE] = 20
+        param[EPOCH_SIZE] = 25
         param[MINI_BATCH_SIZE] = 100
-        param[TRAIN_SIZE] = 1000
+        param[TRAIN_SIZE] = 5000
         param[TEST_SIZE] = 1000
         #
         # param[EPOCH_SIZE] = 2
@@ -552,7 +569,7 @@ class Model_cnn_nn_softmax_B:
         # param[TRAIN_SIZE] = param[MINI_BATCH_SIZE] * 2
         # param[TEST_SIZE] = param[MINI_BATCH_SIZE] * 2
 
-        param[INPUT_IMG_SIZE] = 24
+        param[INPUT_IMG_SIZE] = 32
 
         param[CONV_DROPOUT_RATE] = 0.7
         param[FC_DROPOUT_RATE] = 0.5
@@ -623,7 +640,8 @@ class Model_cnn_nn_softmax_B:
 
         param[FC_LAYER_DEPTH] = 2
         param["fc_layer_width"] = 2048
-        param["fc_input_size"] = 3 * 3 * param["conv9_out"]
+        size = int(param[INPUT_IMG_SIZE] / 8)
+        param[FC_INPUT_RESHAPE_SIZE] = size * size * param["conv9_out"]
 
         param["fc_layer1_w_shape"] = [param["fc_input_size"], param["fc_layer_width"]]
         param["fc_layer1_bias_shape"] = [param["fc_layer_width"]]
@@ -632,22 +650,24 @@ class Model_cnn_nn_softmax_B:
         param["fc_layer2_bias_shape"] = [param["fc_layer_width"]]
 
         param[SOFTMAX_WEIGHT_SHAPE] = [param["fc_layer_width"], 10]
-        param[L2_REGULARIZER_BETA] = 0.1
+        param[L2_REGULARIZER_BETA] = 0.005
         param[LEARNING_RATE] = 1e-4
 
         return param
 
     def build_model(self, param):
-        ph_set = nn.placeholders_init()
+        ph_set = nn.placeholders_init(param[INPUT_IMG_SIZE])
 
         x_ = tf.reshape(ph_set["X"], [-1, param[INPUT_IMG_SIZE], param[INPUT_IMG_SIZE], 3])
-        is_training = tf.placeholder(tf.bool, name="is_training")
+        is_training = tf.placeholder(tf.bool, name=IS_TRAINING)
 
         global_step = tf.Variable(initial_value=0,
-                                  name='global_step', trainable=False)
+                                  name='global_step',
+                                  trainable=False)
 
         global_epoch = tf.Variable(initial_value=0,
-                                   name='global_epoch', trainable=False)
+                                   name='global_epoch',
+                                   trainable=False)
 
         inc_global_epoch = tf.assign(global_epoch, global_epoch + 1)
 
@@ -725,17 +745,17 @@ class Model_cnn_nn_softmax_B:
 
             pooling3 = nn.pooling2d_layer(conv9, name="pooling3")
 
-        fc_input_size = param["fc_input_size"]
-        conv_out_reshape = tf.reshape(pooling3, [-1, fc_input_size])
+        fc_input_size = param[FC_INPUT_RESHAPE_SIZE]
+        fc_input_reshape = tf.reshape(pooling3, [-1, fc_input_size])
 
-        # print(conv_out_reshape)
+        # print(fc_input_reshape)
         activate_function = tf.nn.relu
         with tf.name_scope("fc_layer"):
             fc_layer1_w = nn.init_weights(param["fc_layer1_w_shape"],
                                           initializer=initializer,
                                           name="fc_layer1/weight")
             fc_layer1_bias = nn.init_bias(param["fc_layer1_bias_shape"], name="fc_layer1/bias")
-            fc_layer1 = nn.layer_perceptron(conv_out_reshape,
+            fc_layer1 = nn.layer_perceptron(fc_input_reshape,
                                             fc_layer1_w,
                                             fc_layer1_bias,
                                             is_training,
@@ -782,14 +802,16 @@ class Model_cnn_nn_softmax_B:
 
         # train_op
         learning_rate = param[LEARNING_RATE]
-        train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost_L2, global_step=global_step, name="train_op")
+        train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost_L2, global_step=global_step, name=TRAIN_OP)
         # train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
         # train_op = tf.train.AdadeltaOptimizer(learning_rate).minimize(cost)
         # train_op = tf.train.AdagradOptimizer(learning_rate).minimize(cost)
 
         # prediction and acc
-        predicted_label = tf.equal(tf.argmax(h, 1), tf.argmax(ph_set["Y"], 1))
-        batch_acc = tf.reduce_mean(tf.cast(predicted_label, tf.float32))
+
+        predicted_label = tf.argmax(h, 1)
+        data_label = tf.argmax(ph_set["Y"], 1)
+        batch_acc = tf.reduce_mean(tf.cast(tf.equal(predicted_label, data_label), tf.float32))
 
         init_op = tf.global_variables_initializer()
 
@@ -821,26 +843,26 @@ class Model_cnn_nn_softmax_B:
                       "pooling1": pooling1,
                       "pooling2": pooling2,
                       "pooling3": pooling3,
-                      "conv_out_reshape": conv_out_reshape,
+                      "fc_input_reshape": fc_input_reshape,
 
                       "fc_layer1": fc_layer1,
                       "fc_layer2": fc_layer2,
                       "softmax_w": softmax_w,
                       "h": h,
-                      "cost": cost,
-                      "cost_L2": cost_L2,
-                      "train_op": train_op,
-                      "predicted_label": predicted_label,
-                      "batch_acc": batch_acc,
+                      COST: cost,
+                      L2_COST: cost_L2,
+                      TRAIN_OP: train_op,
+                      PREDICTED_LABEL: predicted_label,
+                      BATCH_ACC: batch_acc,
 
                       # "batch_hit_count ": batch_hit_count,
-                      "init_op": init_op,
-                      "summary": summary,
+                      INIT_OP: init_op,
+                      SUMMARY: summary,
                       FC_DROPOUT_RATE: fc_dropout_rate,
                       CONV_DROPOUT_RATE: conv_dropout_rate,
-                      "is_training": is_training,
-                      "global_epoch": global_epoch,
-                      "inc_global_epoch": inc_global_epoch
+                      IS_TRAINING: is_training,
+                      GLOBAL_EPOCH: global_epoch,
+                      INC_GLOBAL_EPOCH: inc_global_epoch
                       }
         # save tensor
         return tensor_set

@@ -19,7 +19,7 @@ def init_weights(shape, initializer=None, name=None, decay=None):
         var = tf.Variable(tf.random_normal(shape, mean=0.2, stddev=0.01))
 
     if decay is not None:
-        var = tf.mul(var, decay)
+        var = tf.multiply(var, 1)
     return var
 
 
@@ -64,19 +64,10 @@ def conv2d_layer(x, w, is_training, keep_prob=1, activation_function=None, name=
                             padding="SAME",
                             name="conv",
                             )
-        # print(conv)
-
-        # conv = tf.contrib.layers.batch_norm(conv,
-        #                                     center=True,
-        #                                     scale=True,
-        #                                     is_training=is_training,
-        #                                     scope=name + 'bn')
 
         conv = batch_norm_wrapper(conv, is_training=is_training)
 
-        # print(conv)
         conv = activation_function(conv, name="activate")
-        # print(conv)
         conv = tf.nn.dropout(conv, keep_prob=keep_prob, name="drop_out")
 
     # print(conv)
@@ -105,21 +96,8 @@ def layer_perceptron(X, W, bias, is_training, name="perceptron",
                      drop_prob=1, activate_function=None):
     name += "/"
     with tf.name_scope(name):
-        # W = tf.Variable(tf.random_normal(input_shape + layer_width))
-        # W = init_weights(input_shape + layer_width,
-        #                  initializer=xavier_init,
-        #                  name=name + "weight")
-        #
-        # bias = init_bias(layer_width,
-        #                  name=name + "bias")
-
-        # norm = tf.contrib.layers.batch_norm(tf.matmul(X, W) + bias,
-        #                                     center=True,
-        #                                     scale=True,
-        #                                     is_training=is_training,
-        #                                     scope=name + 'bn')
-
-        norm = batch_norm_wrapper(tf.matmul(X, W) + bias, is_training)
+        fc = tf.add(tf.matmul(X, W), bias)
+        norm = batch_norm_wrapper(fc, is_training)
 
         if activate_function is "relu":
             activate = tf.nn.relu(norm)

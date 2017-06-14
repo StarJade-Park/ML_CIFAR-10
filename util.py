@@ -131,22 +131,29 @@ def get_distorted_data(data):
     if random.randint(0, 1) == 0:
         img = ImageOps.mirror(img)
 
-
     # brightness
-    bright_factor_min = 0.2
-    bright_factor_max = 1.8
+    bright_factor_min = 0.5
+    bright_factor_max = 1.5
     bright_factor = random.uniform(bright_factor_min, bright_factor_max)
     img = ImageEnhance.Brightness(img).enhance(bright_factor)
 
     # contrast
-    contrast_factor_min = 0.2
-    contrast_factor_max = 1.8
+    contrast_factor_min = 0.5
+    contrast_factor_max = 1.5
     contrast_factor = random.uniform(contrast_factor_min, contrast_factor_max)
     img = ImageEnhance.Contrast(img).enhance(contrast_factor)
 
+    # resize
+    img = img.resize((40, 40))
+
+    angle = random.randint(-30, 30)
+    img = img.rotate(angle)
+
     # crop
-    img = crop_img(img, 24)
-    raw = img2raw(img, 24)
+    img = crop_img(img, 32)
+
+    raw = img2raw(img, 32)
+
     return raw
 
 
@@ -233,7 +240,22 @@ def strformat():
     return
 
 
+def print_epoch_log(path):
+    epoch_num = 0
+    for dir_ in os.listdir(path):
+        if "~epoch" in dir_:
+            epoch_log_path = os.path.join(path, dir_)
+            for a, b, c, d in unpickle(epoch_log_path):
+                s = "%d %.3f %.3f %.3f %.3f" % (epoch_num, a, b, c, d)
+                print(s)
+                epoch_num += 1
+
+
 if __name__ == '__main__':
     start = time.time()
 
-    look_tuning()
+    # look_tuning()
+
+    for path in get_all_tuning_folder_path():
+        print(path)
+        print_epoch_log(path)

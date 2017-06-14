@@ -17,7 +17,7 @@ BATCH_INIT_ERROR_MSG = "Config init error : option is None," \
 DEFAULT_DIR_LIST = "dir_list"
 DEFAULT_NAME_KEY_LIST = "key_list"
 DEFAULT_TRAIN_DATA_BATCH_FILE_FORMAT = "data_batch_%d"
-DEFAULT_TRAIN_BATCH_FILE_NUMBER = 2
+DEFAULT_TRAIN_BATCH_FILE_NUMBER = 5
 DEFAULT_TEST_DATA_BATCH_FILE_FORMAT = "test_batch"
 # DEFAULT_BATCH_FOLDER = ".\\cifar-10-batches-py" # windows
 # DEFAULT_BATCH_FOLDER = "./cifar-10-batches-py" # ubuntu
@@ -45,16 +45,20 @@ class Config:
     OPTION_TRAIN_SET = "train_set"
     OPTION_TEST_SET = "test_set"
 
-    def __init__(self, option=None):
+    def __init__(self, option=None, max_file_number=5):
         # init config
         self.config = dict()
+
+        self.TRAIN_BATCH_FILE_NUMBER = max_file_number
 
         # set self.config[DEFAULT_DIR_LIST]
         self.option = option
         if option == self.OPTION_TRAIN_SET:
             # init dir_list
             self.config[DEFAULT_DIR_LIST] = []
-            for i in range(1, self.TRAIN_BATCH_FILE_NUMBER + 1):
+            # TODO
+            # for i in range(10, 30 + 1):
+            for i in range(1, max_file_number + 1):
                 self.config[DEFAULT_DIR_LIST] \
                     += [os.path.join(self.FOLDER_NAME, self.TRAIN_BATCH_FILE_NAME_FORMAT % i)]
 
@@ -92,7 +96,6 @@ class Batch:
         self.Thread_exit = False
         self.Thread_run = False
         self.dict_q = {}
-        self.init_thread()
 
         pass
 
@@ -173,6 +176,7 @@ class Batch:
     # load batch file every file_dir in self.config["dir_list"]
     def load_batch(self):
         for dir_ in self.config[DEFAULT_DIR_LIST]:
+            print("batch load", dir_)
             data = util.unpickle(dir_, encoding='bytes')
             for key in data:
                 if key in self.batch:
@@ -205,7 +209,7 @@ class Batch:
     # default is
     # ex) key_list = ["X", "Y"] result is
     # {"X" = [...], "Y" = [...]}
-    def next_distorted_batch(self, size, key_list=None):
+    def next_distorted_batch(self, size, key_list=None, shuffle=True):
         if key_list is None:
             key_list = self.config[Config.KEY_LIST]
 
@@ -225,12 +229,15 @@ class Batch:
 
         return batch
 
-    def next_batch(self, size, key_list=None):
+    def next_batch(self, size, key_list=None, shuffle=False):
         if key_list is None:
             key_list = self.config[Config.KEY_LIST]
 
         index = self.batch_index
         self.batch_index = (self.batch_index + size) % self.batch_size
+
+        if shuffle:
+            index = random.randint(0, self.batch_size - size - 1)
 
         batch = {}
         for key in key_list:
@@ -285,23 +292,77 @@ class Batch:
 #     return
 #
 
-if __name__ == '__main__':
-    # ex_batch_train_set()
-    # ex_batch_test_set()
-    import time
-
+def gen_data():
+    global label_name
     config = Config(Config.OPTION_TRAIN_SET)
-    batch = Batch(config)
-    print("batch loaded")
-    batch.resume_thread()
+    dir_list = config.config[DEFAULT_DIR_LIST]
 
-    key_list = [INPUT_DATA, OUTPUT_LABEL, OUTPUT_DATA]
-    for i in range(1000):
-        start = time.time()
-        q = batch.next_batch_from_q(8, key_list)
-        print(time.time() - start)
-    time_stamp = time.localtime(time.time() - start)
+    data_number = 31
+    for i in range(4):
+        for dir_ in dir_list:
+            train_data = util.unpickle(dir_, encoding='bytes')
 
-    # print(time.strftime("%H:%M:%S", time_stamp))
-    print(q)
+            print(dir_)
+
+            distorted_data = []
+            output_label_list = []
+            idx = 0
+            # target = [2, 3, 4, 5, 7]
+            target = [i for i in range(10)]
+            for data in train_data[INPUT_DATA]:
+                if train_data[OUTPUT_LABEL][idx] in target:
+                    # img = util.raw2img(util.get_distorted_data(data), 32)
+                    # img.show()
+                    #
+                    # time.sleep(4)
+
+                    distorted_data += [util.get_distorted_data(data)]
+                    output_label_list += [train_data[OUTPUT_LABEL][idx]]
+
+                idx += 1
+                if idx % 1000 == 0:
+                    print(idx)
+
+            train_data[INPUT_DATA] = distorted_data
+            train_data[OUTPUT_LABEL] = output_label_list
+
+            new_dir = os.path.join(DEFAULT_BATCH_FOLDER_DIR,
+                                   DEFAULT_TRAIN_DATA_BATCH_FILE_FORMAT % data_number)
+            util.pickle(train_data, new_dir)
+
+            data_number += 1
+
+    print
+
+
+if __name__ == '__main__':
+    path = os.path.join(DEFAULT_BATCH_FOLDER_DIR, "batches.meta")
+    data = util.unpickle(path, encoding='bytes')
+    idx = 0
+    global label_name
+    label_name = data[b'label_names']
+    for i in data[b'label_names']:
+        print(idx, i)
+        idx += 1
+
+    gen_data()
+
+    # # ex_batch_train_set()
+    # # ex_batch_test_set()
+    # import time
+    #
+
+
+    # print("batch loaded")
+    # batch.resume_thread()
+    #
+    # key_list = [INPUT_DATA, OUTPUT_LABEL, OUTPUT_DATA]
+    # for i in range(1000):
+    #     start = time.time()
+    #     q = batch.next_batch_from_q(8, key_list)
+    #     print(time.time() - start)
+    # time_stamp = time.localtime(time.time() - start)
+    #
+    # # print(time.strftime("%H:%M:%S", time_stamp))
+    # print(q)
     pass
