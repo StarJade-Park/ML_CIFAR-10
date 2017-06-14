@@ -3,13 +3,14 @@ import tensor_summary as ts
 import neural_networks as nn
 import random
 
-# TODO write more comment please
+DEFAULT_MINI_BATCH_SIZE = 100
+DEFAULT_CHECK_POINT_INTERVAL = 25
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 PARAM_LIST = "param_list"
-EPOCH_SIZE = "epoch_size"
+CHECK_POINT_INTERVAL = "epoch_size"
 TRAIN_SIZE = "train_size"
 MINI_BATCH_SIZE = "mini_batch_size"
 TEST_SIZE = "test_size"
@@ -39,8 +40,8 @@ COST = "cost"
 L2_COST = "l2_cost"
 
 SUMMARY = "summary"
-INC_GLOBAL_EPOCH = "inc_global_epoch"
-GLOBAL_EPOCH = "global_epoch"
+INC_GLOBAL_STEP = "inc_global_step"
+GLOBAL_STEP = "global_step"
 IS_TRAINING = "is_training"
 INIT_OP = "init_op"
 BATCH_ACC = "batch_acc"
@@ -185,7 +186,7 @@ def model_NN_softmax():
 
 
 class Model_cnn_nn_softmax_A:
-    PARAM_LIST = [EPOCH_SIZE,
+    PARAM_LIST = [CHECK_POINT_INTERVAL,
                   TRAIN_SIZE,
                   TEST_SIZE,
                   MINI_BATCH_SIZE,
@@ -225,26 +226,15 @@ class Model_cnn_nn_softmax_A:
                   LEARNING_RATE,
                   ]
 
-    def __init__(self):
-        pass
-
     def default_param(self):
         param = dict()
         param[PARAM_LIST] = self.PARAM_LIST
 
-        param[EPOCH_SIZE] = 25
-        param[MINI_BATCH_SIZE] = 100
+        param[CHECK_POINT_INTERVAL] = DEFAULT_CHECK_POINT_INTERVAL
+        param[MINI_BATCH_SIZE] = DEFAULT_MINI_BATCH_SIZE
         param[TRAIN_SIZE] = 5000
         param[TEST_SIZE] = 1000
 
-        #
-        # param[EPOCH_SIZE] = 2
-        # param[MINI_BATCH_SIZE] = 2
-        # param[TRAIN_SIZE] = 4
-        # param[TEST_SIZE] = 4
-
-        # param[CONV_DROPOUT_RATE] = 0.25
-        # param[FC_DROPOUT_RATE] = 0.25
         param[CONV_DROPOUT_RATE] = .7
         param[FC_DROPOUT_RATE] = .5
 
@@ -252,21 +242,21 @@ class Model_cnn_nn_softmax_A:
 
         param[INPUT_IMG_SIZE] = 32
 
-        param["conv1_out"] = 128
+        param["conv1_out"] = 32
         param["conv1_filter_size"] = 5
         param["conv1_w_shape"] = [param["conv1_filter_size"],
                                   param["conv1_filter_size"],
                                   3,
                                   param["conv1_out"]]
 
-        param["conv2_out"] = 512
+        param["conv2_out"] = 32
         param["conv2_filter_size"] = 5
         param["conv2_w_shape"] = [param["conv2_filter_size"],
                                   param["conv2_filter_size"],
                                   param["conv1_out"],
                                   param["conv2_out"]]
 
-        param["conv3_out"] = 512
+        param["conv3_out"] = 32
         param["conv3_filter_size"] = 3
         param["conv3_w_shape"] = [param["conv3_filter_size"],
                                   param["conv3_filter_size"],
@@ -277,7 +267,7 @@ class Model_cnn_nn_softmax_A:
         param[FC_INPUT_RESHAPE_SIZE] = size * size * param["conv3_out"]
 
         param[FC_LAYER_DEPTH] = 2
-        param["fc_layer_width"] = 1024
+        param["fc_layer_width"] = 512
 
         param["fc_layer1_w_shape"] = [param["fc_input_size"], param["fc_layer_width"]]
         param["fc_layer1_bias_shape"] = [param["fc_layer_width"]]
@@ -290,7 +280,8 @@ class Model_cnn_nn_softmax_A:
 
         return param
 
-    def build_model(self, param):
+    @staticmethod
+    def build_model(param):
         ph_set = nn.placeholders_init(param[INPUT_IMG_SIZE])
 
         x_ = tf.reshape(ph_set["X"], [-1, param[INPUT_IMG_SIZE], param[INPUT_IMG_SIZE], 3])
@@ -300,43 +291,50 @@ class Model_cnn_nn_softmax_A:
                                   name='global_step',
                                   trainable=False)
 
-        global_epoch = tf.Variable(initial_value=0,
-                                   name='global_epoch',
-                                   trainable=False)
+        inc_global_step = tf.assign(global_step, global_step + 1)
 
-        inc_global_epoch = tf.assign(global_epoch, global_epoch + 1)
-
-        conv_dropout_rate = tf.placeholder(tf.float32, name=CONV_DROPOUT_RATE)
-        fc_dropout_rate = tf.placeholder(tf.float32, name=FC_DROPOUT_RATE)
+        with tf.name_scope("dropout_rate"):
+            conv_dropout_rate = tf.placeholder(tf.float32, name=CONV_DROPOUT_RATE)
+            fc_dropout_rate = tf.placeholder(tf.float32, name=FC_DROPOUT_RATE)
 
         initializer = param[INITIALIZER]
-
         with tf.name_scope("conv_layer1"):
-            conv1_w = nn.init_weights(param["conv1_w_shape"], initializer, "conv1/w")
+            conv1_w = nn.init_weights(param["conv1_w_shape"],
+                                      initializer,
+                                      "conv_layer1/w")
             conv1 = nn.conv2d_layer(x_,
                                     conv1_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv1")
 
+        with tf.name_scope("pooling_layer1"):
             pooling1 = nn.pooling2d_layer(conv1, name="pooling1")
+
         with tf.name_scope("conv_layer2"):
-            conv2_w = nn.init_weights(param["conv2_w_shape"], initializer, "conv2/w")
+            conv2_w = nn.init_weights(param["conv2_w_shape"],
+                                      initializer,
+                                      "conv_layer2/w")
             conv2 = nn.conv2d_layer(pooling1,
                                     conv2_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv2")
 
+        with tf.name_scope("pooling_layer2"):
             pooling2 = nn.pooling2d_layer(conv2, name="pooling2")
+
         with tf.name_scope("conv_layer3"):
-            conv3_w = nn.init_weights(param["conv3_w_shape"], initializer, "conv3/w")
+            conv3_w = nn.init_weights(param["conv3_w_shape"],
+                                      initializer,
+                                      "conv_layer3/w")
             conv3 = nn.conv2d_layer(pooling2,
                                     conv3_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv3")
 
+        with tf.name_scope("polling_layer3"):
             pooling3 = nn.pooling2d_layer(conv3, name="pooling3")
 
         fc_input_size = param[FC_INPUT_RESHAPE_SIZE]
@@ -348,9 +346,10 @@ class Model_cnn_nn_softmax_A:
             fc_layer1_w = nn.init_weights(param["fc_layer1_w_shape"],
                                           initializer=initializer,
                                           decay=0.9999,
-                                          name="fc_layer1/weight")
+                                          name="full_connect_layer1/weight")
 
-            fc_layer1_bias = nn.init_bias(param["fc_layer1_bias_shape"], name="fc_layer1/bias")
+            fc_layer1_bias = nn.init_bias(param["fc_layer1_bias_shape"],
+                                          name="full_connect_layer2/bias")
 
             fc_layer1 = nn.layer_perceptron(fc_input_reshape,
                                             fc_layer1_w,
@@ -364,8 +363,11 @@ class Model_cnn_nn_softmax_A:
             fc_layer2_w = nn.init_weights(param["fc_layer2_w_shape"],
                                           initializer=initializer,
                                           decay=0.9999,
-                                          name="fc_layer2/weight")
-            fc_layer2_bias = nn.init_bias(param["fc_layer2_bias_shape"], name="fc_layer2/bias")
+                                          name="full_connect_layer2/weight")
+
+            fc_layer2_bias = nn.init_bias(param["fc_layer2_bias_shape"],
+                                          name="full_connect_layer2/bias")
+
             fc_layer2 = nn.layer_perceptron(fc_layer1,
                                             fc_layer2_w,
                                             fc_layer2_bias,
@@ -374,43 +376,45 @@ class Model_cnn_nn_softmax_A:
                                             drop_prob=1,
                                             activate_function=activate_function)
 
-        # softmax
-        softmax_w = nn.init_weights(param[SOFTMAX_WEIGHT_SHAPE])
-        h = tf.nn.softmax(tf.matmul(fc_layer2, softmax_w))
+        with tf.name_scope("softmax_layer"):
+            # softmax
+            softmax_w = nn.init_weights(param[SOFTMAX_WEIGHT_SHAPE])
+            h = tf.nn.softmax(tf.matmul(fc_layer2, softmax_w))
 
-        # print(h)
-        # cross entropy
-        cost = tf.reduce_mean(-tf.reduce_sum(ph_set["Y"] * tf.log(h + 1e-10), reduction_indices=1), name="cost")
-        # cost = -tf.reduce_sum(ph_set["Y"] * tf.log(h + 1e-10), name="cost")
+        with tf.name_scope("L2_regularization"):
+            l2_regularizer = tf.reduce_mean(tf.nn.l2_loss(conv1_w)
+                                            + tf.nn.l2_loss(conv2_w)
+                                            + tf.nn.l2_loss(conv3_w)
+                                            + tf.nn.l2_loss(fc_layer1_w)
+                                            + tf.nn.l2_loss(fc_layer2_w)
+                                            + tf.nn.l2_loss(softmax_w))
+            beta = param[L2_REGULARIZER_BETA]
 
-        l2_regularizer = tf.reduce_mean(tf.nn.l2_loss(conv1_w)
-                                        + tf.nn.l2_loss(conv2_w)
-                                        + tf.nn.l2_loss(conv3_w)
-                                        + tf.nn.l2_loss(fc_layer1_w)
-                                        + tf.nn.l2_loss(fc_layer2_w)
-                                        + tf.nn.l2_loss(softmax_w))
-
-        beta = param[L2_REGULARIZER_BETA]
-        L2_cost = tf.add(cost, l2_regularizer * beta, name="cost_L2")
+        with tf.name_scope("cost_function"):
+            epsilon = 1e-10
+            cost = tf.reduce_mean(-tf.reduce_sum(ph_set["Y"] * tf.log(h + epsilon), reduction_indices=1), name="cost")
+            # cost = -tf.reduce_sum(ph_set["Y"] * tf.log(h + 1e-10), name="cost")
+            L2_cost = tf.add(cost, l2_regularizer * beta, name="cost_L2")
 
         # train_op
         learning_rate = param[LEARNING_RATE]
         train_op = tf.train.AdamOptimizer(learning_rate).minimize(L2_cost, global_step=global_step)
-        # train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost, global_step=global_step)
-        # train_op = tf.train.AdadeltaOptimizer(learning_rate).minimize(cost)
-        # train_op = tf.train.AdagradOptimizer(learning_rate).minimize(cost)
 
-        # prediction and acc
+        with tf.name_scope("predicted_label"):
+            predicted_label = tf.argmax(h, 1)
 
-        predicted_label = tf.argmax(h, 1)
-        data_label = tf.argmax(ph_set["Y"], 1)
-        batch_acc = tf.reduce_mean(tf.cast(tf.equal(predicted_label, data_label), tf.float32))
+        with tf.name_scope("batch_acc"):
+            data_label = tf.argmax(ph_set["Y"], 1)
+            batch_acc = tf.reduce_mean(tf.cast(tf.equal(predicted_label, data_label), tf.float32))
 
         init_op = tf.global_variables_initializer()
 
+        tf.summary.image("input_img", x_)
         summary = tf.summary.merge_all()
+
         tensor_set = {"X": ph_set["X"],
                       "Y": ph_set["Y"],
+                      "X_": x_,
                       "Y_label": ph_set["Y_label"],
 
                       "conv1": conv1,
@@ -424,17 +428,20 @@ class Model_cnn_nn_softmax_A:
                       "pooling1": pooling1,
                       "pooling2": pooling2,
                       "pooling3": pooling3,
+
                       "fc_input_reshape": fc_input_reshape,
 
                       "fc_layer1": fc_layer1,
                       "fc_layer2": fc_layer2,
+
                       "softmax_w": softmax_w,
+
                       HYPOTHESIS: h,
                       COST: cost,
                       L2_COST: L2_cost,
-                      "train_op": train_op,
-                      "predicted_label": predicted_label,
-                      "batch_acc": batch_acc,
+                      TRAIN_OP: train_op,
+                      PREDICTED_LABEL: predicted_label,
+                      BATCH_ACC: batch_acc,
 
                       # "batch_hit_count ": batch_hit_count,
                       "init_op": init_op,
@@ -442,61 +449,15 @@ class Model_cnn_nn_softmax_A:
                       FC_DROPOUT_RATE: fc_dropout_rate,
                       CONV_DROPOUT_RATE: conv_dropout_rate,
                       IS_TRAINING: is_training,
-                      GLOBAL_EPOCH: global_epoch,
-                      INC_GLOBAL_EPOCH: inc_global_epoch
+                      GLOBAL_STEP: global_step,
+                      INC_GLOBAL_STEP: inc_global_step
                       }
         # save tensor
         return tensor_set
 
-    def gen_param_random(self):
-        param = {}
-        two_list = [2 ** i for i in range(0, 12 + 1)]
-        param["epoch_size"] = 200
-        param["train_size"] = 5000
-
-        param["mini_batch_size"] = two_list[random.randint(3, 10)]
-        param["conv_dropout_rate"] = 0.7
-        param["fc_dropout_rate"] = 0.5
-        param["initializer"] = tf.contrib.layers.xavier_initializer
-
-        param["conv1_out"] = two_list[random.randint(4, 9)]
-        param["conv1_filter_size"] = random.randint(3, 5)
-        param["conv1_w_shape"] = [param["conv1_filter_size"],
-                                  param["conv1_filter_size"],
-                                  3,
-                                  param["conv1_out"]]
-
-        param["conv2_out"] = two_list[random.randint(4, 9)]
-        param["conv2_filter_size"] = random.randint(3, 5)
-        param["conv2_w_shape"] = [param["conv2_filter_size"],
-                                  param["conv2_filter_size"],
-                                  param["conv1_out"],
-                                  param["conv2_out"]]
-
-        param["conv3_out"] = two_list[random.randint(4, 9)]
-        param["conv3_filter_size"] = random.randint(3, 5)
-        param["conv3_w_shape"] = [param["conv3_filter_size"],
-                                  param["conv3_filter_size"],
-                                  param["conv2_out"],
-                                  param["conv3_out"]]
-
-        param["fc_layer_depth"] = 2
-        param["fc_layer_width"] = two_list[random.randint(4, 12)]
-        param["fc_input_size"] = 4 * 4 * param["conv3_out"]
-        param["fc_layer1_w_shape"] = [4 * 4 * param["conv3_out"], param["fc_layer_width"]]
-        param["fc_layer1_bias_shape"] = [param["fc_layer_width"]]
-        param["fc_layer2_w_shape"] = [param["fc_layer_width"], param["fc_layer_width"]]
-        param["fc_layer2_bias_shape"] = [param["fc_layer_width"]]
-        param["softmax_w_shape"] = [param["fc_layer_width"], 10]
-        param["l2_regularizer_beta"] = random.uniform(0, 5)
-        param["learning_rate"] = 10 ** (random.randint(-4, -4))
-
-        param["param_list"] = self.PARAM_LIST
-        return param
-
 
 class Model_cnn_nn_softmax_B:
-    PARAM_LIST = [EPOCH_SIZE,
+    PARAM_LIST = [CHECK_POINT_INTERVAL,
                   TRAIN_SIZE,
                   TEST_SIZE,
                   MINI_BATCH_SIZE,
@@ -511,7 +472,6 @@ class Model_cnn_nn_softmax_B:
                   "conv1_out",
                   "conv1_filter_size",
                   "conv1_w_shape",
-
                   "conv2_out",
                   "conv2_filter_size",
                   "conv2_w_shape",
@@ -545,93 +505,94 @@ class Model_cnn_nn_softmax_B:
                   "fc_layer2_w_shape",
                   "fc_layer2_bias_shape",
 
-                  "softmax_w_shape",
+                  SOFTMAX_WEIGHT_SHAPE,
 
-                  "l2_regularizer_beta",
+                  L2_REGULARIZER_BETA,
 
-                  "learning_rate",
+                  LEARNING_RATE,
                   ]
-
-    def __init__(self):
-        pass
 
     def default_param(self):
         param = dict()
         param[PARAM_LIST] = self.PARAM_LIST
 
-        param[EPOCH_SIZE] = 25
-        param[MINI_BATCH_SIZE] = 100
+        param[CHECK_POINT_INTERVAL] = DEFAULT_CHECK_POINT_INTERVAL
+        param[MINI_BATCH_SIZE] = DEFAULT_MINI_BATCH_SIZE
         param[TRAIN_SIZE] = 5000
         param[TEST_SIZE] = 1000
         #
-        # param[EPOCH_SIZE] = 2
+        # param[CHECK_POINT_INTERVAL] = 2
         # param[MINI_BATCH_SIZE] = 2
         # param[TRAIN_SIZE] = param[MINI_BATCH_SIZE] * 2
         # param[TEST_SIZE] = param[MINI_BATCH_SIZE] * 2
 
         param[INPUT_IMG_SIZE] = 32
 
-        param[CONV_DROPOUT_RATE] = 0.7
-        param[FC_DROPOUT_RATE] = 0.5
+        # param[CONV_DROPOUT_RATE] = 0.7
+        # param[FC_DROPOUT_RATE] = 0.5
+
+        param[CONV_DROPOUT_RATE] = 1
+        param[FC_DROPOUT_RATE] = 1
+
         param[INITIALIZER] = tf.contrib.layers.xavier_initializer
 
-        param["conv1_out"] = 128
+        param["conv1_out"] = 32
         param["conv1_filter_size"] = 3
         param["conv1_w_shape"] = [param["conv1_filter_size"],
                                   param["conv1_filter_size"],
                                   3,
                                   param["conv1_out"]]
 
-        param["conv2_out"] = 128
+        param["conv2_out"] = 32
         param["conv2_filter_size"] = 3
         param["conv2_w_shape"] = [param["conv2_filter_size"],
                                   param["conv2_filter_size"],
                                   param["conv1_out"],
                                   param["conv2_out"]]
 
-        param["conv3_out"] = 128
+        param["conv3_out"] = 32
         param["conv3_filter_size"] = 3
         param["conv3_w_shape"] = [param["conv3_filter_size"],
                                   param["conv3_filter_size"],
                                   param["conv2_out"],
                                   param["conv3_out"]]
 
-        param["conv4_out"] = 256
+        param["conv4_out"] = 32
         param["conv4_filter_size"] = 3
         param["conv4_w_shape"] = [param["conv4_filter_size"],
                                   param["conv4_filter_size"],
                                   param["conv3_out"],
                                   param["conv4_out"]]
 
-        param["conv5_out"] = 256
+        param["conv5_out"] = 32
         param["conv5_filter_size"] = 3
         param["conv5_w_shape"] = [param["conv5_filter_size"],
                                   param["conv5_filter_size"],
                                   param["conv4_out"],
                                   param["conv5_out"]]
 
-        param["conv6_out"] = 256
+        param["conv6_out"] = 32
         param["conv6_filter_size"] = 3
         param["conv6_w_shape"] = [param["conv6_filter_size"],
                                   param["conv6_filter_size"],
                                   param["conv5_out"],
                                   param["conv6_out"]]
 
-        param["conv7_out"] = 256
+        param["conv7_out"] = 32
         param["conv7_filter_size"] = 3
         param["conv7_w_shape"] = [param["conv7_filter_size"],
                                   param["conv7_filter_size"],
                                   param["conv6_out"],
                                   param["conv7_out"]]
 
-        param["conv8_out"] = 256
+        param["conv8_out"] = 32
         param["conv8_filter_size"] = 3
         param["conv8_w_shape"] = [param["conv8_filter_size"],
                                   param["conv8_filter_size"],
                                   param["conv7_out"],
                                   param["conv8_out"]]
 
-        param["conv9_out"] = 256
+        param["conv9_out"] = 32
         param["conv9_filter_size"] = 3
         param["conv9_w_shape"] = [param["conv9_filter_size"],
                                   param["conv9_filter_size"],
@@ -639,7 +600,7 @@ class Model_cnn_nn_softmax_B:
                                   param["conv9_out"]]
 
         param[FC_LAYER_DEPTH] = 2
-        param["fc_layer_width"] = 2048
+        param["fc_layer_width"] = 1024
         size = int(param[INPUT_IMG_SIZE] / 8)
         param[FC_INPUT_RESHAPE_SIZE] = size * size * param["conv9_out"]
 
@@ -655,7 +616,8 @@ class Model_cnn_nn_softmax_B:
 
         return param
 
-    def build_model(self, param):
+    @staticmethod
+    def build_model(param):
         ph_set = nn.placeholders_init(param[INPUT_IMG_SIZE])
 
         x_ = tf.reshape(ph_set["X"], [-1, param[INPUT_IMG_SIZE], param[INPUT_IMG_SIZE], 3])
@@ -665,84 +627,111 @@ class Model_cnn_nn_softmax_B:
                                   name='global_step',
                                   trainable=False)
 
-        global_epoch = tf.Variable(initial_value=0,
-                                   name='global_epoch',
-                                   trainable=False)
+        inc_global_epoch = tf.assign(global_step, global_step + 1)
 
-        inc_global_epoch = tf.assign(global_epoch, global_epoch + 1)
-
-        conv_dropout_rate = tf.placeholder(tf.float32, name=CONV_DROPOUT_RATE)
-        fc_dropout_rate = tf.placeholder(tf.float32, name=FC_DROPOUT_RATE)
+        with tf.name_scope("dropout_rate"):
+            conv_dropout_rate = tf.placeholder(tf.float32, name=CONV_DROPOUT_RATE)
+            fc_dropout_rate = tf.placeholder(tf.float32, name=FC_DROPOUT_RATE)
 
         initializer = param[INITIALIZER]
 
-        with tf.name_scope("conv_layer"):
-            conv1_w = nn.init_weights(param["conv1_w_shape"], initializer, "conv1/w")
+        with tf.name_scope("conv_layer1"):
+            conv1_w = nn.init_weights(param["conv1_w_shape"],
+                                      initializer,
+                                      "conv_layer1/w")
             conv1 = nn.conv2d_layer(x_,
                                     conv1_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv1")
-            conv2_w = nn.init_weights(param["conv2_w_shape"], initializer, "conv2/w")
+
+        with tf.name_scope("conv_layer2"):
+            conv2_w = nn.init_weights(param["conv2_w_shape"],
+                                      initializer,
+                                      "conv_layer2/w")
             conv2 = nn.conv2d_layer(conv1,
                                     conv2_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv2")
 
-            conv3_w = nn.init_weights(param["conv3_w_shape"], initializer, "conv3/w")
+        with tf.name_scope("conv_layer3"):
+            conv3_w = nn.init_weights(param["conv3_w_shape"],
+                                      initializer,
+                                      "conv_layer3/w")
             conv3 = nn.conv2d_layer(conv2,
                                     conv3_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv3")
 
+        with tf.name_scope("pooling_layer1"):
             pooling1 = nn.pooling2d_layer(conv3, name="pooling1")
 
-            conv4_w = nn.init_weights(param["conv4_w_shape"], initializer, "conv4/w")
+        with tf.name_scope("conv_layer4"):
+            conv4_w = nn.init_weights(param["conv4_w_shape"],
+                                      initializer,
+                                      "conv_layer4/w")
             conv4 = nn.conv2d_layer(pooling1,
                                     conv4_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv4")
 
-            conv5_w = nn.init_weights(param["conv5_w_shape"], initializer, "conv5/w")
+        with tf.name_scope("conv_layer5"):
+            conv5_w = nn.init_weights(param["conv5_w_shape"],
+                                      initializer,
+                                      "conv_layer5/w")
             conv5 = nn.conv2d_layer(conv4,
                                     conv5_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv5")
 
-            conv6_w = nn.init_weights(param["conv6_w_shape"], initializer, "conv6/w")
+        with tf.name_scope("conv_layer6"):
+            conv6_w = nn.init_weights(param["conv6_w_shape"],
+                                      initializer,
+                                      "conv_layer6/w")
             conv6 = nn.conv2d_layer(conv5,
                                     conv6_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv6")
 
+        with tf.name_scope("pooling_layer2"):
             pooling2 = nn.pooling2d_layer(conv6, name="pooling2")
 
-            conv7_w = nn.init_weights(param["conv7_w_shape"], initializer, "conv7/w")
+        with tf.name_scope("conv_layer7"):
+            conv7_w = nn.init_weights(param["conv7_w_shape"],
+                                      initializer,
+                                      "conv_layer7/w")
             conv7 = nn.conv2d_layer(pooling2,
                                     conv7_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv7")
 
-            conv8_w = nn.init_weights(param["conv8_w_shape"], initializer, "conv8/w")
+        with tf.name_scope("conv_layer8"):
+            conv8_w = nn.init_weights(param["conv8_w_shape"],
+                                      initializer,
+                                      "conv_layer8/w")
             conv8 = nn.conv2d_layer(conv7,
                                     conv8_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv8")
 
-            conv9_w = nn.init_weights(param["conv9_w_shape"], initializer, "conv9/w")
+        with tf.name_scope("conv_layer9"):
+            conv9_w = nn.init_weights(param["conv9_w_shape"],
+                                      initializer,
+                                      "conv_layer9/w")
             conv9 = nn.conv2d_layer(conv8,
                                     conv9_w,
                                     is_training,
                                     keep_prob=conv_dropout_rate,
                                     name="conv9")
 
+        with tf.name_scope("pooling_layer3"):
             pooling3 = nn.pooling2d_layer(conv9, name="pooling3")
 
         fc_input_size = param[FC_INPUT_RESHAPE_SIZE]
@@ -750,11 +739,14 @@ class Model_cnn_nn_softmax_B:
 
         # print(fc_input_reshape)
         activate_function = tf.nn.relu
-        with tf.name_scope("fc_layer"):
+        with tf.name_scope("full_connect_layer1"):
             fc_layer1_w = nn.init_weights(param["fc_layer1_w_shape"],
                                           initializer=initializer,
-                                          name="fc_layer1/weight")
-            fc_layer1_bias = nn.init_bias(param["fc_layer1_bias_shape"], name="fc_layer1/bias")
+                                          name="full_connect_layer1/weight")
+
+            fc_layer1_bias = nn.init_bias(param["fc_layer1_bias_shape"],
+                                          name="full_connect_layer1/bias")
+
             fc_layer1 = nn.layer_perceptron(fc_input_reshape,
                                             fc_layer1_w,
                                             fc_layer1_bias,
@@ -763,10 +755,14 @@ class Model_cnn_nn_softmax_B:
                                             drop_prob=fc_dropout_rate,
                                             activate_function=activate_function)
 
+        with tf.name_scope("full_connect_layer2"):
             fc_layer2_w = nn.init_weights(param["fc_layer2_w_shape"],
                                           initializer=initializer,
-                                          name="fc_layer2/weight")
-            fc_layer2_bias = nn.init_bias(param["fc_layer2_bias_shape"], name="fc_layer2/bias")
+                                          name="full_connect_layer2/weight")
+
+            fc_layer2_bias = nn.init_bias(param["fc_layer2_bias_shape"],
+                                          name="full_connect_layer2/bias")
+
             fc_layer2 = nn.layer_perceptron(fc_layer1,
                                             fc_layer2_w,
                                             fc_layer2_bias,
@@ -775,43 +771,45 @@ class Model_cnn_nn_softmax_B:
                                             drop_prob=1,
                                             activate_function=activate_function)
 
-        # softmax
-        softmax_w = nn.init_weights(param[SOFTMAX_WEIGHT_SHAPE])
-        h = tf.nn.softmax(tf.matmul(fc_layer2, softmax_w))
+        with tf.name_scope("softmax_layer"):
+            # softmax
+            softmax_w = nn.init_weights(param[SOFTMAX_WEIGHT_SHAPE])
+            h = tf.nn.softmax(tf.matmul(fc_layer2, softmax_w))
 
-        # print(h)
-        # cross entropy
-        cost = tf.reduce_mean(-tf.reduce_sum(ph_set["Y"] * tf.log(h + 1e-10), reduction_indices=1), name="cost")
-        # cost = -tf.reduce_sum(ph_set["Y"] * tf.log(h + 1e-10), name="cost")
+        with tf.name_scope("L2_regularization"):
+            l2_regularizer = tf.reduce_mean(tf.nn.l2_loss(conv1_w)
+                                            + tf.nn.l2_loss(conv2_w)
+                                            + tf.nn.l2_loss(conv3_w)
+                                            + tf.nn.l2_loss(conv4_w)
+                                            + tf.nn.l2_loss(conv5_w)
+                                            + tf.nn.l2_loss(conv6_w)
+                                            + tf.nn.l2_loss(conv7_w)
+                                            + tf.nn.l2_loss(conv8_w)
+                                            + tf.nn.l2_loss(conv9_w)
+                                            + tf.nn.l2_loss(fc_layer1_w)
+                                            + tf.nn.l2_loss(fc_layer2_w)
+                                            + tf.nn.l2_loss(softmax_w))
 
-        l2_regularizer = tf.reduce_mean(tf.nn.l2_loss(conv1_w)
-                                        + tf.nn.l2_loss(conv2_w)
-                                        + tf.nn.l2_loss(conv3_w)
-                                        + tf.nn.l2_loss(conv4_w)
-                                        + tf.nn.l2_loss(conv5_w)
-                                        + tf.nn.l2_loss(conv6_w)
-                                        + tf.nn.l2_loss(conv7_w)
-                                        + tf.nn.l2_loss(conv8_w)
-                                        + tf.nn.l2_loss(conv9_w)
-                                        + tf.nn.l2_loss(fc_layer1_w)
-                                        + tf.nn.l2_loss(fc_layer2_w)
-                                        + tf.nn.l2_loss(softmax_w))
+            beta = param[L2_REGULARIZER_BETA]
 
-        beta = param[L2_REGULARIZER_BETA]
-        cost_L2 = tf.add(cost, l2_regularizer * beta, name="cost_L2")
+        with tf.name_scope("cost_function"):
+            # cross entropy
+            epsilon = 1e-10
+            cost = tf.reduce_mean(-tf.reduce_sum(ph_set["Y"] * tf.log(h + epsilon), reduction_indices=1), name="cost")
+
+            cost_L2 = tf.add(cost, l2_regularizer * beta, name="cost_L2")
 
         # train_op
         learning_rate = param[LEARNING_RATE]
         train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost_L2, global_step=global_step, name=TRAIN_OP)
-        # train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
-        # train_op = tf.train.AdadeltaOptimizer(learning_rate).minimize(cost)
-        # train_op = tf.train.AdagradOptimizer(learning_rate).minimize(cost)
 
         # prediction and acc
+        with tf.name_scope("predicted_label"):
+            predicted_label = tf.argmax(h, 1)
 
-        predicted_label = tf.argmax(h, 1)
-        data_label = tf.argmax(ph_set["Y"], 1)
-        batch_acc = tf.reduce_mean(tf.cast(tf.equal(predicted_label, data_label), tf.float32))
+        with tf.name_scope("batch_acc"):
+            data_label = tf.argmax(ph_set["Y"], 1)
+            batch_acc = tf.reduce_mean(tf.cast(tf.equal(predicted_label, data_label), tf.float32))
 
         init_op = tf.global_variables_initializer()
 
@@ -848,72 +846,27 @@ class Model_cnn_nn_softmax_B:
                       "fc_layer1": fc_layer1,
                       "fc_layer2": fc_layer2,
                       "softmax_w": softmax_w,
-                      "h": h,
+
+                      HYPOTHESIS: h,
+
                       COST: cost,
                       L2_COST: cost_L2,
-                      TRAIN_OP: train_op,
+
                       PREDICTED_LABEL: predicted_label,
                       BATCH_ACC: batch_acc,
 
-                      # "batch_hit_count ": batch_hit_count,
                       INIT_OP: init_op,
+                      TRAIN_OP: train_op,
+
                       SUMMARY: summary,
+
                       FC_DROPOUT_RATE: fc_dropout_rate,
                       CONV_DROPOUT_RATE: conv_dropout_rate,
+
                       IS_TRAINING: is_training,
-                      GLOBAL_EPOCH: global_epoch,
-                      INC_GLOBAL_EPOCH: inc_global_epoch
+
+                      GLOBAL_STEP: global_step,
+                      INC_GLOBAL_STEP: inc_global_epoch
                       }
         # save tensor
         return tensor_set
-
-    def gen_param_random(self):
-        param = dict()
-        two_list = [2 ** i for i in range(0, 12 + 1)]
-        param[EPOCH_SIZE] = 200
-        param["train_size"] = 5000
-
-        param[MINI_BATCH_SIZE] = two_list[random.randint(3, 10)]
-        param[CONV_DROPOUT_RATE] = 0.7
-        param[FC_DROPOUT_RATE] = 0.5
-        param[INITIALIZER] = tf.contrib.layers.xavier_initializer
-
-        param["conv1_out"] = two_list[random.randint(4, 9)]
-        param["conv1_filter_size"] = random.randint(3, 5)
-        param["conv1_w_shape"] = [param["conv1_filter_size"],
-                                  param["conv1_filter_size"],
-                                  3,
-                                  param["conv1_out"]]
-
-        param["conv2_out"] = two_list[random.randint(4, 9)]
-        param["conv2_filter_size"] = random.randint(3, 5)
-        param["conv2_w_shape"] = [param["conv2_filter_size"],
-                                  param["conv2_filter_size"],
-                                  param["conv1_out"],
-                                  param["conv2_out"]]
-
-        param["conv3_out"] = two_list[random.randint(4, 9)]
-        param["conv3_filter_size"] = random.randint(3, 5)
-        param["conv3_w_shape"] = [param["conv3_filter_size"],
-                                  param["conv3_filter_size"],
-                                  param["conv2_out"],
-                                  param["conv3_out"]]
-
-        param["fc_layer_depth"] = 2
-        param["fc_layer_width"] = two_list[random.randint(4, 12)]
-        param["fc_input_size"] = 4 * 4 * param["conv3_out"]
-
-        param["fc_layer1_w_shape"] = [4 * 4 * param["conv3_out"], param["fc_layer_width"]]
-        param["fc_layer1_bias_shape"] = [param["fc_layer_width"]]
-
-        param["fc_layer2_w_shape"] = [param["fc_layer_width"], param["fc_layer_width"]]
-        param["fc_layer2_bias_shape"] = [param["fc_layer_width"]]
-
-        param["softmax_w_shape"] = [param["fc_layer_width"], 10]
-        param["l2_regularizer_beta"] = random.uniform(0, 5)
-        param["learning_rate"] = 10 ** (random.randint(-4, -4))
-
-        param["param_list"] = self.PARAM_LIST
-        return param
-
-    pass

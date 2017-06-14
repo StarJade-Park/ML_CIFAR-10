@@ -45,20 +45,18 @@ class Config:
     OPTION_TRAIN_SET = "train_set"
     OPTION_TEST_SET = "test_set"
 
-    def __init__(self, option=None, max_file_number=5):
+    def __init__(self, option=None, start=1, end=5):
         # init config
         self.config = dict()
 
-        self.TRAIN_BATCH_FILE_NUMBER = max_file_number
+        self.TRAIN_BATCH_FILE_NUMBER = end - start + 1
 
         # set self.config[DEFAULT_DIR_LIST]
         self.option = option
         if option == self.OPTION_TRAIN_SET:
             # init dir_list
             self.config[DEFAULT_DIR_LIST] = []
-            # TODO
-            # for i in range(10, 30 + 1):
-            for i in range(1, max_file_number + 1):
+            for i in range(start, end + 1):
                 self.config[DEFAULT_DIR_LIST] \
                     += [os.path.join(self.FOLDER_NAME, self.TRAIN_BATCH_FILE_NAME_FORMAT % i)]
 

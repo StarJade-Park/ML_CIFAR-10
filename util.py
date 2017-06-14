@@ -132,13 +132,13 @@ def get_distorted_data(data):
         img = ImageOps.mirror(img)
 
     # brightness
-    bright_factor_min = 0.5
+    bright_factor_min = 0.7
     bright_factor_max = 1.5
     bright_factor = random.uniform(bright_factor_min, bright_factor_max)
     img = ImageEnhance.Brightness(img).enhance(bright_factor)
 
     # contrast
-    contrast_factor_min = 0.5
+    contrast_factor_min = 0.7
     contrast_factor_max = 1.5
     contrast_factor = random.uniform(contrast_factor_min, contrast_factor_max)
     img = ImageEnhance.Contrast(img).enhance(contrast_factor)
@@ -188,7 +188,7 @@ def get_new_tuning_folder():
     print(folder_path)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
-        print("make dir")
+        print("make dir", folder_path)
     return folder_path
 
 
