@@ -56,8 +56,7 @@ def conv2d_layer(x, w, is_training, keep_prob=1, activation_function=None, name=
     if activation_function is None:
         activation_function = tf.nn.relu
 
-    name += "/"
-    with tf.name_scope(name):
+    with tf.name_scope("conv2d"):
         conv = tf.nn.conv2d(x,
                             w,
                             strides=[1, 1, 1, 1],
@@ -65,9 +64,13 @@ def conv2d_layer(x, w, is_training, keep_prob=1, activation_function=None, name=
                             name="conv",
                             )
 
+    with tf.name_scope("normalization"):
         conv = batch_norm_wrapper(conv, is_training=is_training)
 
+    with tf.name_scope("activate"):
         conv = activation_function(conv, name="activate")
+
+    with tf.name_scope("dropout"):
         conv = tf.nn.dropout(conv, keep_prob=keep_prob, name="drop_out")
 
     # print(conv)
@@ -75,30 +78,30 @@ def conv2d_layer(x, w, is_training, keep_prob=1, activation_function=None, name=
 
 
 def pooling2d_layer(input, keep_prob=1, name="pooling"):
-    name += "/"
-
-    with tf.name_scope(name):
+    with tf.name_scope("max_pooling"):
         max_pooling = tf.nn.max_pool(input,
                                      ksize=[1, 3, 3, 1],
                                      strides=[1, 2, 2, 1],
                                      padding="SAME",
                                      name="max_pooling")
 
-        max_pooling = tf.nn.dropout(max_pooling,
-                                    keep_prob=keep_prob,
-                                    name="drop_out")
+    with tf.name_scope("dropout"):
+        dropout = tf.nn.dropout(max_pooling,
+                                keep_prob=keep_prob,
+                                name="drop_out")
 
-    # print(max_pooling)
-    return max_pooling
+    return dropout
 
 
 def layer_perceptron(X, W, bias, is_training, name="perceptron",
                      drop_prob=1, activate_function=None):
-    name += "/"
-    with tf.name_scope(name):
-        fc = tf.add(tf.matmul(X, W), bias)
-        norm = batch_norm_wrapper(fc, is_training)
+    with tf.name_scope("pre_activate"):
+        pre_activate = tf.add(tf.matmul(X, W), bias)
 
+    with tf.name_scope("normalization"):
+        norm = batch_norm_wrapper(pre_activate, is_training)
+
+    with tf.name_scope("activate"):
         if activate_function is "relu":
             activate = tf.nn.relu(norm)
         else:
@@ -108,17 +111,21 @@ def layer_perceptron(X, W, bias, is_training, name="perceptron",
                                  keep_prob=drop_prob,
                                  name="drop_out")
 
-        ts.variable_summaries(W)
-        ts.variable_summaries(bias)
+    ts.variable_summaries(W)
+    ts.variable_summaries(bias)
 
     return activate
 
 
 def placeholders_init(size, name="input"):
     # placeHolder
-    with tf.name_scope(name):
+    with tf.name_scope("input_X"):
         x = tf.placeholder(tf.float32, [None, size * size * 3], name="X")
+
+    with tf.name_scope("input_Y"):
         y = tf.placeholder(tf.float32, [None, 10], name="Y")
+
+    with tf.name_scope("input_label"):
         y_label = tf.placeholder(tf.float32, [None], name="Y_label")
 
     ph_set = {"X": x,
